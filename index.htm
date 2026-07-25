@@ -1,0 +1,157 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="index, follow">
+  <title>SendBOX - 登録不要のファイル共有</title>
+  
+<meta name="description" content="SendBOXは登録不要のシンプルなファイル共有サービスです。ファイルをアップロードするだけでリンクが発行され、パスワード保護にも対応。1回最大512MB、3日間で自動削除されます。">
+<link rel="canonical" href="index.htm">
+
+  <link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.htm" class="logo"><span class="logo-mark">⬆</span>SendBOX</a>
+      <span class="tagline">登録不要・最大512MB・3日間保存</span>
+    </div>
+  </header>
+
+  <main class="container">
+    
+
+<section class="hero">
+  <h1>ファイルを、リンクひとつで。</h1>
+  <p>アップロードして出てきたリンクを送るだけ。アカウント登録は必要ありません。</p>
+</section>
+
+<section class="card upload-card" id="upload-card">
+  <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="クリックまたはドラッグ＆ドロップでファイルを選択">
+    <div class="dz-icon" aria-hidden="true">⬆</div>
+    <p class="dz-main">ここにファイルやフォルダをドラッグ＆ドロップ</p>
+    <p class="dz-sub">またはクリックして選択（合計 512.0 MB まで）</p>
+    <p class="dz-sub">複数ファイルを選んだら「ZIPにまとめる」ボタンでひとつにできます</p>
+    <button type="button" class="dz-folder-btn" id="folder-select-btn">フォルダを選択する</button>
+    <input type="file" id="file-input" multiple="" hidden="">
+    <input type="file" id="folder-input" webkitdirectory="" directory="" multiple="" hidden="">
+  </div>
+
+  <ul class="file-list" id="file-list"></ul>
+  <p class="total-size" id="total-size" hidden=""></p>
+  <button type="button" class="btn btn-ghost btn-block" id="zip-files-btn" hidden="">
+    選択したファイルをZIPにまとめる
+  </button>
+  <p class="note" id="folder-hint" hidden="">フォルダが含まれているため、フォルダの中身をそのまま送るには先に「ZIPにまとめる」をご利用ください。</p>
+
+  <div class="field">
+    <label for="password">パスワード（任意）</label>
+    <div class="password-row">
+      <input type="password" id="password" maxlength="128" placeholder="設定するとダウンロード時に入力が必要になります" autocomplete="new-password">
+      <button type="button" class="btn btn-ghost btn-icon" id="toggle-password-btn" aria-label="パスワードを表示" aria-pressed="false">
+        <span class="icon-eye" aria-hidden="true">
+          <span class="icon-eye-slash"></span>
+        </span>
+      </button>
+      <button type="button" class="btn btn-ghost btn-small" id="generate-password-btn">自動生成</button>
+    </div>
+  </div>
+
+  <button type="button" class="btn btn-primary btn-lg btn-block" id="upload-btn" disabled="">
+    アップロード
+  </button>
+
+  <div class="progress" id="progress" hidden="">
+    <div class="progress-track"><div class="progress-bar" id="progress-bar"></div></div>
+    <span class="progress-text" id="progress-text">0%</span>
+  </div>
+
+  <p class="error-msg" id="upload-error" hidden=""></p>
+  <p class="note center">アップロードした時点で、ページ下部の利用規約に同意したものとみなします。</p>
+</section>
+
+<section class="card result-card" id="result-card" hidden="">
+  <div class="result-icon" aria-hidden="true">✅</div>
+  <h2>アップロード完了</h2>
+  <p class="result-name" id="result-name"></p>
+  <p class="note" id="result-meta"></p>
+
+  <div class="link-section">
+    <h3>ダウンロードリンク</h3>
+    <div class="link-box">
+      <input type="text" id="result-link" readonly="" aria-label="ダウンロードリンク">
+      <button type="button" class="btn btn-primary" data-copy-target="result-link">コピー</button>
+    </div>
+    <p class="note" id="result-expiry"></p>
+  </div>
+
+  <a class="btn btn-ghost" href="index.htm">続けてアップロードする</a>
+</section>
+
+
+  </main>
+
+  <footer class="site-footer">
+    <section class="terms" id="terms">
+      <h2>利用規約</h2>
+      <ol>
+        <li><strong>禁止事項（違法なファイル）：</strong>法令に違反するファイル（著作権・肖像権等を侵害するもの、児童の性的搾取に関わるもの、マルウェア・ウイルス等の有害なプログラム、その他公序良俗に反するもの）のアップロードを固く禁止します。</li>
+        <li><strong>禁止事項（サーバーへの攻撃）：</strong>本サービスのサーバーに対する攻撃行為（DoS/DDoS攻撃、脆弱性の探索・診断行為、不正アクセス、レート制限の意図的な回避、その他過度な負荷を与える行為）を禁止します。</li>
+        <li><strong>保存期間：</strong>アップロードされたファイルは、アップロードから3日後に自動的にサーバーから削除され、ダウンロードリンクも無効になります。</li>
+        <li><strong>自己責任：</strong>ダウンロードリンクおよび設定したパスワードの管理は利用者の責任で行ってください。リンクを知る第三者はファイルにアクセスできます。</li>
+        <li><strong>免責：</strong>本サービスの利用または利用不能により生じたいかなる損害についても、運営者は一切の責任を負いません。ファイルの保全性・可用性は保証されません。</li>
+        <li><strong>違反時の措置：</strong>規約違反が確認された場合、事前の通知なくファイルの削除、アクセス制限、および必要に応じて関係機関への通報を行うことがあります。</li>
+        <li><strong>規約の変更：</strong>本規約は予告なく変更されることがあります。本サービスを利用した時点で、最新の規約に同意したものとみなします。</li>
+      </ol>
+    </section>
+    <p class="copyright">SendBOX — ファイルをアップロードした時点で利用規約に同意したものとみなします。</p>
+  </footer>
+
+  <script src="static/jszip.min.js"></script>
+  <script src="static/main.js"></script>
+  <script>
+    (function () {
+      var passwordInput = document.getElementById('password');
+      var generateBtn = document.getElementById('generate-password-btn');
+      var toggleBtn = document.getElementById('toggle-password-btn');
+      if (!passwordInput || !generateBtn || !toggleBtn) return;
+
+      var PASSWORD_LENGTH = 16;
+      // 紛らわしい文字（0/O, 1/l/I など）を避けた文字セット
+      var CHARSET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*()-_=+';
+
+      function generatePassword(length) {
+        var array = new Uint32Array(length);
+        window.crypto.getRandomValues(array);
+        var result = '';
+        for (var i = 0; i < length; i++) {
+          result += CHARSET[array[i] % CHARSET.length];
+        }
+        return result;
+      }
+
+      function setVisible(visible) {
+        passwordInput.type = visible ? 'text' : 'password';
+        toggleBtn.classList.toggle('is-visible', visible);
+        toggleBtn.setAttribute('aria-pressed', String(visible));
+        toggleBtn.setAttribute('aria-label', visible ? 'パスワードを隠す' : 'パスワードを表示');
+      }
+
+      generateBtn.addEventListener('click', function () {
+        var newPassword = generatePassword(PASSWORD_LENGTH);
+        passwordInput.value = newPassword;
+        setVisible(true);
+        // 他のスクリプトのバリデーション等が拾えるようinputイベントを発火
+        passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
+        passwordInput.focus();
+        passwordInput.select();
+      });
+
+      toggleBtn.addEventListener('click', function () {
+        setVisible(passwordInput.type === 'password');
+      });
+    })();
+  </script>
+</body>
+</html>
