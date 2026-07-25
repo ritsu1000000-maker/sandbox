@@ -1,0 +1,12 @@
+Uri: https://sendbox.awasome.jp/
+File Name: C:\Users\ritsu\Downloads\sendbox.awasome.jp\index.htm
+Content Type: text/html
+
+Uri: https://sendbox.awasome.jp/static/main.js
+File Name: C:\Users\ritsu\Downloads\sendbox.awasome.jp\static\main.js
+Content Type: text/javascript
+
+Uri: https://sendbox.awasome.jp/static/style.css
+File Name: C:\Users\ritsu\Downloads\sendbox.awasome.jp\static\style.css
+Content Type: text/css
+
