@@ -80,6 +80,13 @@ foreach ($property in @("runner_pid", "control_pid")) {
     }
 }
 
+foreach ($port in @(8080, 9000)) {
+    $listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($listener) {
+        throw "ポート $port は別のプロセス (PID $($listener.OwningProcess)) が使用中です。"
+    }
+}
+
 $state.runner_pid = $null
 $state.control_pid = $null
 $state | ConvertTo-Json | Set-Content $statePath -Encoding UTF8
@@ -104,14 +111,16 @@ Set-Content $controlOut "" -Encoding UTF8
 Set-Content $controlErr "" -Encoding UTF8
 
 Write-Host "[4/6] Docker Runner を起動中..."
-$runnerProcess = Start-Process \
-    -FilePath $venvPython \
-    -ArgumentList @("run_windows.py", "runner") \
-    -WorkingDirectory $PSScriptRoot \
-    -WindowStyle Hidden \
-    -RedirectStandardOutput $runnerOut \
-    -RedirectStandardError $runnerErr \
-    -PassThru
+$runnerStart = @{
+    FilePath               = $venvPython
+    ArgumentList           = @("run_windows.py", "runner")
+    WorkingDirectory       = $PSScriptRoot
+    WindowStyle            = "Hidden"
+    RedirectStandardOutput = $runnerOut
+    RedirectStandardError  = $runnerErr
+    PassThru               = $true
+}
+$runnerProcess = Start-Process @runnerStart
 
 $runnerReady = $false
 for ($i = 0; $i -lt 30; $i++) {
@@ -135,14 +144,16 @@ if (-not $runnerReady) {
 }
 
 Write-Host "[5/6] 管理画面を起動中..."
-$controlProcess = Start-Process \
-    -FilePath $venvPython \
-    -ArgumentList @("run_windows.py", "control") \
-    -WorkingDirectory $PSScriptRoot \
-    -WindowStyle Hidden \
-    -RedirectStandardOutput $controlOut \
-    -RedirectStandardError $controlErr \
-    -PassThru
+$controlStart = @{
+    FilePath               = $venvPython
+    ArgumentList           = @("run_windows.py", "control")
+    WorkingDirectory       = $PSScriptRoot
+    WindowStyle            = "Hidden"
+    RedirectStandardOutput = $controlOut
+    RedirectStandardError  = $controlErr
+    PassThru               = $true
+}
+$controlProcess = Start-Process @controlStart
 
 $controlReady = $false
 for ($i = 0; $i -lt 30; $i++) {
