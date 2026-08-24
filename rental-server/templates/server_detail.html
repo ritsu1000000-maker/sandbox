@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block title %}{{ server_name }}｜サーバー管理｜Rental Server{% endblock %}
+{% block head %}
+<style>
+.detail-logs-panel{display:none!important}.detail-panel .wide-action:not(.danger-action){display:none!important}
+</style>
+{% endblock %}
 {% block content %}
 <section class="page-hero">
   <div class="container">
