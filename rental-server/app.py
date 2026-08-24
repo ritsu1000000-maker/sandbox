@@ -1,38 +1,27 @@
 import os
-from functools import wraps
+import secrets
 
 import requests
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SESSION_SECRET", "change-this-session-secret")
 
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "change-me-now")
 RUNNER_URL = os.environ.get("RUNNER_URL", "http://runner:9000").rstrip("/")
 RUNNER_TOKEN = os.environ.get("RUNNER_TOKEN", "change-this-runner-token")
 
 
-def login_required(fn):
-    @wraps(fn)
-    def wrapper(*args, **kwargs):
-        if not session.get("admin"):
-            if request.path.startswith("/api/"):
-                return jsonify({"error": "authentication required"}), 401
-            return redirect(url_for("login"))
-        return fn(*args, **kwargs)
-
-    return wrapper
-
-
-def runner_request(method: str, path: str, **kwargs):
+def runner_request(method: str, path: str, instance_key: str | None = None, **kwargs):
     headers = kwargs.pop("headers", {})
     headers["Authorization"] = f"Bearer {RUNNER_TOKEN}"
+    if instance_key:
+        headers["X-Instance-Key"] = instance_key
+
     try:
         response = requests.request(
             method,
             f"{RUNNER_URL}{path}",
             headers=headers,
-            timeout=15,
+            timeout=20,
             **kwargs,
         )
     except requests.RequestException as exc:
@@ -45,27 +34,11 @@ def runner_request(method: str, path: str, **kwargs):
     return payload, (jsonify(payload), response.status_code)
 
 
-@app.get("/login")
-def login():
-    return render_template("login.html")
-
-
-@app.post("/login")
-def login_post():
-    if request.form.get("password", "") != ADMIN_PASSWORD:
-        return render_template("login.html", error="パスワードが違います"), 401
-    session["admin"] = True
-    return redirect(url_for("index"))
-
-
-@app.post("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("login"))
+def instance_key_from_request() -> str:
+    return request.headers.get("X-Instance-Key", "").strip()
 
 
 @app.get("/")
-@login_required
 def index():
     return render_template("index.html")
 
@@ -75,46 +48,69 @@ def health():
     return jsonify({"ok": True, "service": "rental-server-control"})
 
 
-@app.get("/api/instances")
-@login_required
-def list_instances():
-    _, result = runner_request("GET", "/instances")
+@app.get("/api/plans")
+def plans():
+    _, result = runner_request("GET", "/plans")
     return result
 
 
 @app.post("/api/instances")
-@login_required
 def create_instance():
     data = request.get_json(silent=True) or {}
+    manage_key = secrets.token_urlsafe(32)
     payload = {
         "name": data.get("name", ""),
         "template": data.get("template", "python-web"),
-        "plan": data.get("plan", "small"),
+        "plan": data.get("plan", "free"),
+        "manage_key": manage_key,
     }
-    _, result = runner_request("POST", "/instances", json=payload)
+
+    response, result = runner_request("POST", "/instances", json=payload)
+    if response is None:
+        return result
+
+    body, status = result
+    if status == 201:
+        response["manage_key"] = manage_key
+        return jsonify(response), 201
+    return result
+
+
+@app.get("/api/instances/<name>")
+def get_instance(name: str):
+    key = instance_key_from_request()
+    if not key:
+        return jsonify({"error": "management key required"}), 401
+    _, result = runner_request("GET", f"/instances/{name}", instance_key=key)
     return result
 
 
 @app.post("/api/instances/<name>/<action>")
-@login_required
 def instance_action(name: str, action: str):
     if action not in {"start", "stop", "restart"}:
         return jsonify({"error": "unsupported action"}), 400
-    _, result = runner_request("POST", f"/instances/{name}/{action}")
+    key = instance_key_from_request()
+    if not key:
+        return jsonify({"error": "management key required"}), 401
+    _, result = runner_request("POST", f"/instances/{name}/{action}", instance_key=key)
     return result
 
 
 @app.delete("/api/instances/<name>")
-@login_required
 def delete_instance(name: str):
-    _, result = runner_request("DELETE", f"/instances/{name}")
+    key = instance_key_from_request()
+    if not key:
+        return jsonify({"error": "management key required"}), 401
+    _, result = runner_request("DELETE", f"/instances/{name}", instance_key=key)
     return result
 
 
 @app.get("/api/instances/<name>/logs")
-@login_required
 def instance_logs(name: str):
-    _, result = runner_request("GET", f"/instances/{name}/logs")
+    key = instance_key_from_request()
+    if not key:
+        return jsonify({"error": "management key required"}), 401
+    _, result = runner_request("GET", f"/instances/{name}/logs", instance_key=key)
     return result
 
 
