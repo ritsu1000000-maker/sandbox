@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Rental Server Dashboard</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:#090e1b;color:#eef2ff}.wrap{max-width:1180px;margin:auto;padding:28px}.top{display:flex;justify-content:space-between;align-items:center;gap:16px}.title h1{margin:0;font-size:30px}.title p{margin:7px 0;color:#91a2c6}.btn,button,select,input{font:inherit}.btn,button{border:0;border-radius:11px;padding:10px 14px;color:#fff;background:#6574ff;cursor:pointer;font-weight:700}.ghost{background:#202a44}.danger{background:#9c334d}.panel{margin-top:24px;background:#10172a;border:1px solid #23304d;border-radius:18px;padding:18px}.create{display:grid;grid-template-columns:2fr 1fr 1fr auto;gap:10px}.create input,.create select{background:#0b1222;color:#fff;border:1px solid #293858;border-radius:11px;padding:11px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:18px}.card{background:#121b31;border:1px solid #263655;border-radius:16px;padding:16px}.line{display:flex;justify-content:space-between;align-items:center;gap:10px}.name{font-size:19px;font-weight:800}.tag{font-size:12px;background:#243252;padding:5px 8px;border-radius:999px}.meta{color:#9aabc9;font-size:13px;line-height:1.8;margin:10px 0}.actions{display:flex;gap:7px;flex-wrap:wrap}.actions button{padding:8px 10px;font-size:13px}.logs{white-space:pre-wrap;background:#060a13;border-radius:12px;padding:12px;max-height:240px;overflow:auto;color:#b9c8e7;font-family:ui-monospace,monospace;font-size:12px;margin-top:12px}.status-running{color:#67e8a5}.status-exited,.status-dead{color:#ff8b9f}.empty{color:#91a2c6;text-align:center;padding:35px}.msg{margin-top:12px;padding:10px 12px;border-radius:10px;display:none}.ok{display:block;background:#123b2b;color:#8ff0bb}.err{display:block;background:#4a1f2b;color:#ffb0c0}@media(max-width:720px){.create{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="title"><h1>Rental Server</h1><p>Docker隔離型インスタンス管理パネル</p></div>
+    <form method="post" action="/logout"><button class="ghost">ログアウト</button></form>
+  </div>
+
+  <section class="panel">
+    <div class="create">
+      <input id="name" placeholder="instance-name (3〜32文字)">
+      <select id="template"><option value="python-web">Python Web</option><option value="node-web">Node Web</option><option value="nginx">Nginx</option></select>
+      <select id="plan"><option value="small">Small 256MB / 0.25 CPU</option><option value="medium">Medium 512MB / 0.5 CPU</option></select>
+      <button onclick="createInstance()">作成</button>
+    </div>
+    <div id="message" class="msg"></div>
+    <div id="instances" class="grid"></div>
+  </section>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+
+function message(text, ok=false){const el=$('#message');el.textContent=text;el.className='msg '+(ok?'ok':'err');setTimeout(()=>el.className='msg',3500)}
+
+async function api(path, options={}){
+  const r=await fetch(path,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options});
+  const data=await r.json().catch(()=>({error:'invalid response'}));
+  if(!r.ok) throw new Error(data.error||`HTTP ${r.status}`);
+  return data;
+}
+
+async function load(){
+  try{
+    const data=await api('/api/instances');
+    const root=$('#instances');
+    const items=data.instances||[];
+    if(!items.length){root.innerHTML='<div class="empty">まだインスタンスがありません</div>';return}
+    root.innerHTML=items.map(i=>{
+      const url=i.host_port?`${location.protocol}//${location.hostname}:${i.host_port}`:null;
+      return `<article class="card">
+        <div class="line"><span class="name">${esc(i.name)}</span><span class="tag status-${esc(i.status)}">${esc(i.status)}</span></div>
+        <div class="meta">Template: ${esc(i.template)}<br>Plan: ${esc(i.plan)}<br>Container: ${esc(i.container_id)}<br>${url?`URL: <a href="${esc(url)}" target="_blank" style="color:#8fa8ff">${esc(url)}</a>`:'URL: -'}</div>
+        <div class="actions">
+          <button onclick="act('${esc(i.name)}','start')">Start</button>
+          <button class="ghost" onclick="act('${esc(i.name)}','stop')">Stop</button>
+          <button class="ghost" onclick="act('${esc(i.name)}','restart')">Restart</button>
+          <button class="ghost" onclick="showLogs('${esc(i.name)}')">Logs</button>
+          <button class="danger" onclick="removeInstance('${esc(i.name)}')">Delete</button>
+        </div>
+        <div id="logs-${esc(i.name)}" class="logs" style="display:none"></div>
+      </article>`
+    }).join('');
+  }catch(e){message(e.message)}
+}
+
+async function createInstance(){
+  const name=$('#name').value.trim().toLowerCase();
+  try{await api('/api/instances',{method:'POST',body:JSON.stringify({name,template:$('#template').value,plan:$('#plan').value})});$('#name').value='';message('インスタンスを作成しました',true);await load()}catch(e){message(e.message)}
+}
+
+async function act(name, action){try{await api(`/api/instances/${encodeURIComponent(name)}/${action}`,{method:'POST'});message(`${name}: ${action}`,true);await load()}catch(e){message(e.message)}}
+
+async function removeInstance(name){if(!confirm(`${name} を削除しますか？`))return;try{await api(`/api/instances/${encodeURIComponent(name)}`,{method:'DELETE'});message('削除しました',true);await load()}catch(e){message(e.message)}}
+
+async function showLogs(name){try{const d=await api(`/api/instances/${encodeURIComponent(name)}/logs`);const el=document.getElementById(`logs-${name}`);el.style.display='block';el.textContent=d.logs||'(no logs)'}catch(e){message(e.message)}}
+
+load();setInterval(load,10000);
+</script>
+</body>
+</html>
