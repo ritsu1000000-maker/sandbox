@@ -36,8 +36,8 @@ TEMPLATES = {
         ],
     },
     "nginx": {
-        "image": "nginx:alpine",
-        "port": 80,
+        "image": "nginxinc/nginx-unprivileged:alpine",
+        "port": 8080,
         "command": None,
     },
 }
@@ -149,7 +149,11 @@ def create_instance():
             read_only=True,
             cap_drop=["ALL"],
             security_opt=["no-new-privileges"],
-            tmpfs={"/tmp": "rw,noexec,nosuid,size=64m"},
+            tmpfs={
+                "/tmp": "rw,noexec,nosuid,size=64m",
+                "/var/cache/nginx": "rw,noexec,nosuid,size=16m",
+                "/var/run": "rw,noexec,nosuid,size=4m",
+            },
             ports={f"{internal_port}/tcp": None},
             labels={
                 LABEL_KEY: "true",
