@@ -1,6 +1,36 @@
 # Rental Server
 
-Python / Flaskを中心にしたレンタルサーバー管理サイトです。利用者はプランと実行環境を選び、自分専用のサーバーを作成・起動・停止・再起動・削除できます。
+アカウント・契約・所有権・更新日・実サーバー発行を分離した、Python / Flask製のレンタルサーバー管理サービスです。
+
+## 実装済みのレンタルフロー
+
+```text
+新規登録 / ログイン
+        |
+        v
+料金プランを選択
+        |
+        v
+契約を作成（契約ID / 更新日 / 所有者）
+        |
+        +-- 無料プラン ------> 即時プロビジョニング
+        |
+        +-- 有料プラン ------> pending_payment（決済確認待ち）
+                                |
+                                v
+                        決済確認後に発行
+        |
+        v
+Dashboard / Server Control
+        |
+        +-- Start
+        +-- Stop
+        +-- Restart
+        +-- Public URL
+        +-- 契約解約 -> 実サーバー削除
+```
+
+ブラウザLocalStorageの管理キーだけで所有者を判定する方式は廃止し、ログイン中のユーザーIDと契約DBで所有権を確認します。
 
 ## 構成
 
@@ -8,7 +38,14 @@ Python / Flaskを中心にしたレンタルサーバー管理サイトです。
 Browser
   |
   v
-Flask Web / API
+Flask Web / Session / CSRF
+  |
+  +--> RentalDatabase
+  |      +-- SQLite (local)
+  |      +-- PostgreSQL (production)
+  |
+  v
+RentalService
   |
   v
 RentalManager
@@ -21,131 +58,144 @@ RentalManager
 ```text
 rental-server/
 ├─ app.py
-├─ server.py                 # 設定/起動CLI
-├─ server.env.example        # 推奨設定テンプレート
-├─ .env.example              # dotenv互換テンプレート
-├─ gunicorn.conf.py          # 本番Webサーバー設定
-├─ Dockerfile
-├─ docker-compose.yml
-├─ start-windows.ps1
-├─ stop-windows.ps1
+├─ server.py
+├─ server.env.example
+├─ .env.example
+├─ gunicorn.conf.py
 ├─ runner.py
 ├─ rental_core/
 │  ├─ config.py
+│  ├─ database.py
 │  ├─ env_loader.py
 │  ├─ errors.py
 │  ├─ manager.py
 │  ├─ providers.py
 │  ├─ rate_limit.py
+│  ├─ rental_service.py
 │  └─ security.py
 ├─ templates/
 └─ static/
 ```
 
-## 設定ファイルの優先順位
+# Webページ
 
-設定値は次の順で優先されます。
+| URL | 内容 |
+| --- | --- |
+| `/` | トップ |
+| `/plans` | 契約プラン比較 |
+| `/signup` | 契約者アカウント作成 |
+| `/login` | ログイン |
+| `/dashboard` | 自分の契約一覧 |
+| `/create` | 新規契約 |
+| `/servers/<contract_id>` | 契約中サーバー管理 |
+| `/billing` | 契約・月額・更新日 |
+| `/health` | 稼働確認 |
+| `/api/system` | システム状態 |
 
-1. Render / OS / PowerShellなどの実際のプロセス環境変数
-2. `RENTAL_ENV_FILE` で明示したファイル
-3. `server.env`
-4. `.env`
+`/create`、`/dashboard`、`/servers/<contract_id>`、`/billing`はログイン必須です。
 
-ローカルでは `server.env` を推奨します。Render公開時はファイルを置かず、Render DashboardのEnvironment Variablesを使ってください。
+# 所有権
 
-`server.env` と `.env` は `.gitignore` 済みです。実APIキーや秘密値をGitHubへコミットしないでください。
+ユーザーが入力するサーバー表示名と、Provider内部の名前は分離しています。
 
-# 初回セットアップ
-
-## Windows: 一番簡単な方法
-
-Docker Desktopを起動し、Linux containersモードにしたあと:
-
-```powershell
-cd rental-server
-.\start-windows.ps1
-```
-
-初回実行時に自動で:
-
-- `.venv` 作成
-- Python依存パッケージ導入
-- `server.env` 作成
-- `RUNNER_TOKEN` の安全なランダム生成
-- `INSTANCE_KEY_SECRET` の安全なランダム生成
-- Docker Runner起動
-- Webサービス起動
-- ヘルスチェック
-- ログディレクトリ作成
-
-まで行います。
-
-起動後:
+例:
 
 ```text
-http://127.0.0.1:8080
+表示名: my-server
+内部名: u12-my-server-a1b2c3
 ```
 
-停止:
+そのため、別ユーザーが同じ `my-server` という表示名を契約してもProvider側では衝突しません。
 
-```powershell
-.\stop-windows.ps1
-```
+サーバー操作時は:
 
-ログ:
+1. ログインセッション確認
+2. `contract_id` がログインユーザー所有かDBで確認
+3. 内部resource nameからProvider管理キーをサーバー側で導出
+4. Render / Runnerへ操作
+
+という順で処理します。Provider管理キーはブラウザへ保存しません。
+
+# 契約状態
+
+| 状態 | 意味 |
+| --- | --- |
+| `pending_payment` | 有料契約・決済確認待ち |
+| `provisioning` | 実サーバー発行中 |
+| `active` | 利用中 |
+| `provision_failed` | 発行失敗 |
+| `canceled` | 解約済み |
+
+無料プランは契約作成後に即時プロビジョニングします。
+
+有料プランは決済確認なしでRenderの有料サービスを作成しないため、まず `pending_payment` で保存します。
+
+# データベース
+
+## ローカル
+
+デフォルト:
 
 ```text
-logs/runner.out.log
-logs/runner.err.log
-logs/control.out.log
-logs/control.err.log
+DATABASE_URL=sqlite:///data/rental.db
 ```
 
-## 手動セットアップ
+SQLiteには以下を保存します。
 
-```bash
-python -m venv .venv
+- ユーザーID
+- メールアドレス
+- パスワードハッシュ
+- 契約ID
+- 契約者ID
+- 表示サーバー名
+- Provider内部名
+- プラン
+- 実行環境
+- 契約状態
+- 公開URL
+- 契約日
+- 次回更新日
+- 解約日
+
+`data/` と `*.db` は `.gitignore` 済みです。
+
+## 本番
+
+`DATABASE_URL` が `postgresql://` / `postgres://` なら自動的にPostgreSQLを使用します。
+
+```text
+DATABASE_URL=postgresql://...
 ```
 
-Windows:
+Renderなどの再デプロイがある環境ではPostgreSQLを推奨します。
 
-```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe server.py init-env
-.\.venv\Scripts\python.exe server.py check
-```
-
-Linux / macOS:
-
-```bash
-.venv/bin/python -m pip install -r requirements.txt
-.venv/bin/python server.py init-env
-.venv/bin/python server.py check
-```
-
-設定に問題がなければ、RunnerとWebをそれぞれ起動できます。
-
-```bash
-python server.py runner
-python server.py web
-```
+現在のRender WorkspaceではHobby Tierの25サービス上限に達しているため、新しい無料PostgreSQLの作成がRender APIから拒否されます。空き枠を作るか別の永続PostgreSQLを用意した後、`DATABASE_URL`を差し替えればコード変更なしで移行できます。
 
 # server.env
 
-テンプレートは `server.env.example` です。
+初回:
+
+```powershell
+python server.py init-env
+```
+
+主要項目:
 
 ```text
 BACKEND_PROVIDER=runner
 APP_HOST=0.0.0.0
 PORT=8080
 CREATE_LIMIT_PER_HOUR=10
-LOG_LEVEL=INFO
-INSTANCE_KEY_SECRET=<自動生成された秘密値>
+LEASE_DAYS=30
+
+SESSION_SECRET=<自動生成>
+INSTANCE_KEY_SECRET=<自動生成>
+DATABASE_URL=sqlite:///data/rental.db
 
 RUNNER_HOST=127.0.0.1
 RUNNER_PORT=9000
 RUNNER_URL=http://127.0.0.1:9000
-RUNNER_TOKEN=<自動生成された秘密値>
+RUNNER_TOKEN=<自動生成>
 MAX_INSTANCES=10
 
 RENDER_API_KEY=
@@ -158,124 +208,74 @@ ALLOW_PAID_RENDER_PLANS=false
 REQUEST_TIMEOUT_SECONDS=30
 ```
 
-### 主な設定
+`SESSION_SECRET`、`INSTANCE_KEY_SECRET`、`RUNNER_TOKEN`、`RENDER_API_KEY`は公開しないでください。
 
-| 変数 | 用途 |
-| --- | --- |
-| `BACKEND_PROVIDER` | `runner` または `render` |
-| `APP_HOST` | Webの待受アドレス |
-| `PORT` | Webポート |
-| `INSTANCE_KEY_SECRET` | サーバー管理キー用の秘密値 |
-| `CREATE_LIMIT_PER_HOUR` | IPごとの作成回数上限 |
-| `RUNNER_HOST` | Docker Runner待受アドレス |
-| `RUNNER_PORT` | Docker Runnerポート |
-| `RUNNER_URL` | WebからRunnerへ接続する内部URL |
-| `RUNNER_TOKEN` | Web→Runner間の認証トークン |
-| `MAX_INSTANCES` | ローカルDockerで作成できる最大数 |
-| `RENDER_API_KEY` | Render REST APIキー。秘密情報 |
-| `RENDER_OWNER_ID` | Render Workspace ID |
-| `RENDER_TENANT_REGION` | 利用者用Render Serviceのリージョン |
-| `ALLOW_PAID_RENDER_PLANS` | 有料Renderプラン自動作成の許可 |
-| `REQUEST_TIMEOUT_SECONDS` | Provider API通信タイムアウト |
-| `LOG_LEVEL` | アプリ/Gunicornログレベル |
+# Windows / Docker Runner
 
-# server.py CLI
+必要:
 
-```text
-python server.py init-env
-python server.py init-env --force
-python server.py check
-python server.py web
-python server.py runner
+- Windows 10 / 11
+- Docker Desktop
+- Linux containersモード
+- Python 3
+- PowerShell
+
+起動:
+
+```powershell
+cd rental-server
+.\start-windows.ps1
 ```
 
-`init-env` は `server.env.example` から `server.env` を作り、秘密値を自動生成します。
-
-`check` はProvider、ポート、秘密値、Render設定などを確認します。APIキーの値そのものは表示しません。
-
-# Docker Compose
-
-まず設定を作ります。
-
-```bash
-python server.py init-env
-```
-
-その後:
-
-```bash
-docker compose up -d --build
-```
-
-`docker-compose.yml` は `server.env` をcontrol / runnerへ読み込みます。RunnerだけがDocker socketを扱い、control側にはDocker socketを渡しません。
+初回は `.venv`、依存パッケージ、`server.env`、秘密値、SQLite DBを自動準備します。
 
 停止:
 
-```bash
-docker compose down
+```powershell
+.\stop-windows.ps1
 ```
 
 # Render公開
 
-RenderではDocker Runnerを起動せず、Render REST APIを使います。
-
-## Web Service
+Web Service:
 
 ```text
 Repository: https://github.com/ritsu1000000-maker/sandbox
 Branch: rental-server-mvp
 Root Directory: rental-server
-Runtime: Python 3
 Build Command: pip install -r requirements.txt
-Start Command: gunicorn -c gunicorn.conf.py app:app
+Start Command: gunicorn app:app --bind 0.0.0.0:$PORT
 Health Check Path: /health
 ```
 
-現在の古いStart Command `gunicorn app:app --bind 0.0.0.0:$PORT` でも起動できますが、`gunicorn.conf.py` を使う方を推奨します。
-
-## Render Environment Variables
-
-最低限:
+Environment:
 
 ```text
 BACKEND_PROVIDER=render
-RENDER_API_KEY=<Render API Key>
-RENDER_OWNER_ID=<Render Workspace ID>
-INSTANCE_KEY_SECRET=<長いランダム文字列>
+RENDER_API_KEY=<secret>
+RENDER_OWNER_ID=<workspace id>
+INSTANCE_KEY_SECRET=<secret>
+DATABASE_URL=<PostgreSQL URL recommended>
+LEASE_DAYS=30
 ALLOW_PAID_RENDER_PLANS=false
 ```
 
-推奨:
+`SESSION_SECRET`を独立して設定するのが推奨ですが、未設定時は`INSTANCE_KEY_SECRET`をログインセッション署名にも使用します。
 
-```text
-RENDER_TENANT_REPO=https://github.com/ritsu1000000-maker/sandbox
-RENDER_TENANT_BRANCH=rental-server-mvp
-RENDER_TENANT_REGION=singapore
-RENDER_SERVICE_PREFIX=rental
-CREATE_LIMIT_PER_HOUR=10
-REQUEST_TIMEOUT_SECONDS=30
-LOG_LEVEL=INFO
-WEB_CONCURRENCY=2
-GUNICORN_THREADS=4
-GUNICORN_TIMEOUT=60
-```
+# セキュリティ
 
-`RENDER_API_KEY` と `INSTANCE_KEY_SECRET` は公開禁止です。`RENDER_OWNER_ID` は識別子でありAPIキーではありません。
-
-Render上では `BACKEND_PROVIDER` が未設定でもRender環境を自動検出しますが、明示的に `render` を設定することを推奨します。
-
-# Webページ
-
-| URL | 内容 |
-| --- | --- |
-| `/` | トップページ |
-| `/plans` | 料金・性能比較 |
-| `/create` | サーバー作成 |
-| `/servers` | マイサーバー一覧 |
-| `/servers/<name>` | 1台ごとの管理画面 |
-| `/import` | 管理キーで既存サーバーを追加 |
-| `/health` | 稼働確認 |
-| `/api/system` | バックエンド状態・機能情報 |
+- パスワードはWerkzeugのパスワードハッシュで保存
+- セッションCookieはHttpOnly / SameSite=Lax
+- Render上ではSecure Cookie
+- POST操作はCSRF token必須
+- Content Security Policy / nosniff / Referrer Policy
+- 契約所有権をDBで確認
+- Render API Keyはブラウザへ送らない
+- Provider管理キーはブラウザへ保存しない
+- controlへDocker socketを渡さない
+- RunnerのみDocker Engineを操作
+- 利用者へホストOSのcmd.exeやDocker socketを公開しない
+- 有料プランは決済確認前に実サーバーを発行しない
 
 # プラン
 
@@ -287,30 +287,16 @@ Render上では `BACKEND_PROVIDER` が未設定でもRender環境を自動検出
 | 50GB | 2,000円 | 1GB | 1.0 |
 | 100GB | 4,000円 | 2GB | 2.0 |
 
-表示容量・RAM・CPUはレンタルサイト側のプラン情報です。Render APIモードではRenderの実際のインスタンスタイプや永続ディスクとは別管理です。Docker RunnerモードではCPU/RAM制限をDockerへ適用します。
+注意: Render APIモードで表示しているStorage/RAM/CPUは契約プラン情報です。実際の永続ディスククォータやRenderインスタンスタイプと完全一致させるには、Provider側の容量割当・永続ディスク管理を追加する必要があります。
 
-# セキュリティ方針
+# 次の本番機能
 
-- 利用者へホストOSの `cmd.exe` を直接公開しない
-- control側へDocker socketを渡さない
-- Runner APIは `RUNNER_TOKEN` で保護
-- サーバー操作はサーバー単位の管理キーで保護
-- Render APIキーはバックエンドだけで使用
-- `server.env` / `.env` はGit管理しない
-- Docker利用者コンテナはread-only、capabilities drop、no-new-privileges、PID/RAM/CPU制限を使用
-- 有料Renderサービスの自動作成は初期状態で無効
+契約・所有権・ログイン・DB・自動発行のコアは実装済みです。商用の有料運営まで進める場合に残る大きな項目は以下です。
 
-# まだ必要な本番機能
-
-現在でも小規模な管理サイトとして動きますが、商用レンタルサーバーとして運営するにはさらに以下が必要です。
-
-- PostgreSQLによるユーザー・契約・監査ログ
-- メール認証/アカウント復旧
-- 決済確認後だけ有料プランを有効化
-- 実際の永続ディスク容量クォータ
-- Render実ログ取得
-- CPU/RAM/リクエスト数の監視グラフ
-- Redis等を使った共有レート制限
-- ファイルアップロード時の容量/拡張子/Zip Slip対策
-- 利用期限・自動停止
-- バックアップと復旧
+- 決済プロバイダWebhookによる `pending_payment -> active` 自動化
+- メールアドレス確認
+- パスワード再設定
+- 実永続ディスク容量クォータ
+- バックアップ/復旧
+- 契約期限切れの自動停止
+- 共有Redisレート制限
