@@ -1,7 +1,3 @@
-param(
-    [string]$AdminPassword = ""
-)
-
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
 Set-Location $PSScriptRoot
@@ -9,12 +5,7 @@ Set-Location $PSScriptRoot
 function New-HexSecret([int]$ByteCount) {
     $bytes = New-Object byte[] $ByteCount
     $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
-    try {
-        $rng.GetBytes($bytes)
-    }
-    finally {
-        $rng.Dispose()
-    }
+    try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
     return ([System.BitConverter]::ToString($bytes) -replace "-", "").ToLowerInvariant()
 }
 
@@ -34,39 +25,28 @@ if ($dockerOs.Trim() -ne "linux") {
 Write-Host "[2/6] Python 仮想環境を確認中..."
 $venvPython = Join-Path $PSScriptRoot ".venv\Scripts\python.exe"
 if (-not (Test-Path $venvPython)) {
-    if (Get-Command py -ErrorAction SilentlyContinue) {
-        & py -3 -m venv .venv
-    }
-    elseif (Get-Command python -ErrorAction SilentlyContinue) {
-        & python -m venv .venv
-    }
-    else {
-        throw "Python 3 が見つかりません。Python 3 をインストールしてください。"
-    }
+    if (Get-Command py -ErrorAction SilentlyContinue) { & py -3 -m venv .venv }
+    elseif (Get-Command python -ErrorAction SilentlyContinue) { & python -m venv .venv }
+    else { throw "Python 3 が見つかりません。Python 3 をインストールしてください。" }
 }
 
 Write-Host "[3/6] Python パッケージを準備中..."
 & $venvPython -m pip install --disable-pip-version-check -q -r requirements.txt
-if ($LASTEXITCODE -ne 0) {
-    throw "Python パッケージのインストールに失敗しました。"
-}
+if ($LASTEXITCODE -ne 0) { throw "Python パッケージのインストールに失敗しました。" }
 
 $statePath = Join-Path $PSScriptRoot ".windows-state.json"
 if (Test-Path $statePath) {
     $state = Get-Content $statePath -Raw | ConvertFrom-Json
+    if (-not ($state.PSObject.Properties.Name -contains "runner_token")) {
+        $state | Add-Member -NotePropertyName runner_token -NotePropertyValue (New-HexSecret 32)
+    }
 }
 else {
     $state = [pscustomobject]@{
-        admin_password = (New-HexSecret 8)
-        session_secret = (New-HexSecret 32)
-        runner_token   = (New-HexSecret 32)
-        runner_pid     = $null
-        control_pid    = $null
+        runner_token = (New-HexSecret 32)
+        runner_pid   = $null
+        control_pid  = $null
     }
-}
-
-if (-not [string]::IsNullOrWhiteSpace($AdminPassword)) {
-    $state.admin_password = $AdminPassword
 }
 
 foreach ($property in @("runner_pid", "control_pid")) {
@@ -82,17 +62,13 @@ foreach ($property in @("runner_pid", "control_pid")) {
 
 foreach ($port in @(8080, 9000)) {
     $listener = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($listener) {
-        throw "ポート $port は別のプロセス (PID $($listener.OwningProcess)) が使用中です。"
-    }
+    if ($listener) { throw "ポート $port は別のプロセス (PID $($listener.OwningProcess)) が使用中です。" }
 }
 
 $state.runner_pid = $null
 $state.control_pid = $null
 $state | ConvertTo-Json | Set-Content $statePath -Encoding UTF8
 
-$env:ADMIN_PASSWORD = [string]$state.admin_password
-$env:SESSION_SECRET = [string]$state.session_secret
 $env:RUNNER_TOKEN = [string]$state.runner_token
 $env:RUNNER_URL = "http://127.0.0.1:9000"
 $env:RUNNER_PORT = "9000"
@@ -112,69 +88,41 @@ Set-Content $controlErr "" -Encoding UTF8
 
 Write-Host "[4/6] Docker Runner を起動中..."
 $runnerStart = @{
-    FilePath               = $venvPython
-    ArgumentList           = @("run_windows.py", "runner")
-    WorkingDirectory       = $PSScriptRoot
-    WindowStyle            = "Hidden"
-    RedirectStandardOutput = $runnerOut
-    RedirectStandardError  = $runnerErr
-    PassThru               = $true
+    FilePath=$venvPython; ArgumentList=@("run_windows.py", "runner"); WorkingDirectory=$PSScriptRoot;
+    WindowStyle="Hidden"; RedirectStandardOutput=$runnerOut; RedirectStandardError=$runnerErr; PassThru=$true
 }
 $runnerProcess = Start-Process @runnerStart
 
 $runnerReady = $false
-for ($i = 0; $i -lt 30; $i++) {
+for ($i=0; $i -lt 30; $i++) {
     Start-Sleep -Milliseconds 500
     if ($runnerProcess.HasExited) { break }
-    try {
-        $health = Invoke-RestMethod -Uri "http://127.0.0.1:9000/health" -TimeoutSec 2
-        if ($health.ok) {
-            $runnerReady = $true
-            break
-        }
-    }
-    catch { }
+    try { $health=Invoke-RestMethod -Uri "http://127.0.0.1:9000/health" -TimeoutSec 2; if ($health.ok) {$runnerReady=$true;break} } catch {}
 }
-
 if (-not $runnerReady) {
     Stop-Process -Id $runnerProcess.Id -Force -ErrorAction SilentlyContinue
-    Write-Host "`n--- runner.err.log ---"
     Get-Content $runnerErr -ErrorAction SilentlyContinue
     throw "Runner の起動に失敗しました。"
 }
 
-Write-Host "[5/6] 管理画面を起動中..."
+Write-Host "[5/6] レンタルサーバーサイトを起動中..."
 $controlStart = @{
-    FilePath               = $venvPython
-    ArgumentList           = @("run_windows.py", "control")
-    WorkingDirectory       = $PSScriptRoot
-    WindowStyle            = "Hidden"
-    RedirectStandardOutput = $controlOut
-    RedirectStandardError  = $controlErr
-    PassThru               = $true
+    FilePath=$venvPython; ArgumentList=@("run_windows.py", "control"); WorkingDirectory=$PSScriptRoot;
+    WindowStyle="Hidden"; RedirectStandardOutput=$controlOut; RedirectStandardError=$controlErr; PassThru=$true
 }
 $controlProcess = Start-Process @controlStart
 
 $controlReady = $false
-for ($i = 0; $i -lt 30; $i++) {
+for ($i=0; $i -lt 30; $i++) {
     Start-Sleep -Milliseconds 500
     if ($controlProcess.HasExited) { break }
-    try {
-        $health = Invoke-RestMethod -Uri "http://127.0.0.1:8080/health" -TimeoutSec 2
-        if ($health.ok) {
-            $controlReady = $true
-            break
-        }
-    }
-    catch { }
+    try { $health=Invoke-RestMethod -Uri "http://127.0.0.1:8080/health" -TimeoutSec 2; if ($health.ok) {$controlReady=$true;break} } catch {}
 }
-
 if (-not $controlReady) {
     Stop-Process -Id $controlProcess.Id -Force -ErrorAction SilentlyContinue
     Stop-Process -Id $runnerProcess.Id -Force -ErrorAction SilentlyContinue
-    Write-Host "`n--- control.err.log ---"
     Get-Content $controlErr -ErrorAction SilentlyContinue
-    throw "管理画面の起動に失敗しました。"
+    throw "サイトの起動に失敗しました。"
 }
 
 $state.runner_pid = $runnerProcess.Id
@@ -183,8 +131,7 @@ $state | ConvertTo-Json | Set-Content $statePath -Encoding UTF8
 
 Write-Host "[6/6] 起動完了" -ForegroundColor Green
 Write-Host ""
-Write-Host "管理画面 : http://127.0.0.1:8080"
-Write-Host "パスワード: $($state.admin_password)"
-Write-Host ""
-Write-Host "停止      : .\stop-windows.ps1"
-Write-Host "ログ      : .\logs\"
+Write-Host "Rental Server : http://127.0.0.1:8080"
+Write-Host "ログイン/管理者パスワード: なし"
+Write-Host "停止 : .\stop-windows.ps1"
+Write-Host "ログ : .\logs\"
