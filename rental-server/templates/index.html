@@ -1,55 +1,25 @@
 {% extends "base.html" %}
-{% block title %}Rental Server｜シンプルなサーバーホスティング{% endblock %}
+{% block title %}Rental Server｜契約型レンタルサーバー{% endblock %}
 {% block head %}
 <style>
 .purpose-card{display:flex;flex-direction:column;min-height:230px;transition:.18s ease}.purpose-card:hover{border-color:#a8c6e3;transform:translateY(-2px);box-shadow:0 10px 26px rgba(31,65,102,.07)}.purpose-card .route-chip{font-family:inherit;font-weight:800}.purpose-card h3{font-size:20px;margin-top:14px}.purpose-card p{line-height:1.8}.card-link{margin-top:auto;padding-top:20px;border-top:1px solid #edf1f5;color:#1768c4;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:space-between}.card-link span{color:#8090a3;font:700 11px ui-monospace,SFMono-Regular,Consolas,monospace}
 </style>
 {% endblock %}
-{% block notice %}
-<div class="notice-bar"><div class="container notice-inner"><span class="notice-label">お知らせ</span><span>500MBの無料プランを提供しています。まずは小さく試せます。</span></div></div>
-{% endblock %}
+{% block notice %}<div class="notice-bar"><div class="container notice-inner"><span class="notice-label">お知らせ</span><span>500MB無料プランは契約後すぐに利用開始できます。</span></div></div>{% endblock %}
 {% block content %}
 <section class="hero">
   <div class="container hero-grid">
     <div>
-      <div class="eyebrow">APPLICATION HOSTING</div>
-      <h1>サーバー運用を、<br><strong>もっとシンプルに。</strong></h1>
-      <p class="hero-lead">Python・Node.js・Nginxの実行環境を、用途に合わせた容量プランから選択。作成後は専用ページから起動・停止・再起動・削除まで管理できます。</p>
-      <div class="hero-actions"><a class="button button-primary" href="/create">サーバーを作成する</a><a class="button button-outline" href="/plans">料金プランを見る</a></div>
-      <p class="hero-note">500MBプランは月額0円。作成したサーバーはマイサーバーページから管理できます。</p>
+      <div class="eyebrow">RENTAL APPLICATION HOSTING</div>
+      <h1>契約して使う、<br><strong>レンタルサーバー。</strong></h1>
+      <p class="hero-lead">アカウントごとに契約・所有権・更新日を管理。契約成立後、Python・Node.js・Nginxの実行環境を自動発行し、専用ダッシュボードから運用できます。</p>
+      <div class="hero-actions">{% if current_user %}<a class="button button-primary" href="/create">新しいサーバーを契約</a><a class="button button-outline" href="/dashboard">ダッシュボード</a>{% else %}<a class="button button-primary" href="/signup">無料で始める</a><a class="button button-outline" href="/plans">料金プランを見る</a>{% endif %}</div>
+      <p class="hero-note">無料プランは月額0円。有料プランは支払い確認後に実サーバーを発行します。</p>
     </div>
-    <aside class="hero-visual" aria-label="サーバー管理画面イメージ">
-      <div class="server-window">
-        <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
-        <div class="server-body">
-          <div class="metric"><span>Server</span><strong>my-app</strong></div>
-          <div class="metric"><span>Status</span><span class="status-ok">● Running</span></div>
-          <div class="metric"><span>Plan</span><strong>10GB</strong></div>
-          <div class="metric"><span>Runtime</span><strong>Python Web</strong></div>
-        </div>
-      </div>
-    </aside>
+    <aside class="hero-visual" aria-label="契約サーバー管理画面イメージ"><div class="server-window"><div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div><div class="server-body"><div class="metric"><span>Contract</span><strong>#1024</strong></div><div class="metric"><span>Status</span><span class="status-ok">● Active</span></div><div class="metric"><span>Plan</span><strong>10GB / ¥1,500</strong></div><div class="metric"><span>Renewal</span><strong>2026/09/25</strong></div></div></div></aside>
   </div>
 </section>
-<section class="trust-strip"><div class="container trust-grid"><div class="trust-item"><strong>500MB 無料</strong><span>初めての利用や検証に</span></div><div class="trust-item"><strong>最大100GB</strong><span>用途に合わせて選択</span></div><div class="trust-item"><strong>Web管理</strong><span>起動・停止・再起動</span></div><div class="trust-item"><strong>3つの実行環境</strong><span>Python / Node.js / Nginx</span></div></div></section>
-<section class="section">
-  <div class="container">
-    <header class="section-heading"><span class="label">SERVICE FEATURES</span><h2>ページごとに、わかりやすく。</h2><p>必要な操作をひとつの画面に詰め込まず、目的別のページに分けています。</p></header>
-    <div class="feature-grid">
-      <article class="feature-card"><div class="feature-number">01 / PLANS</div><h3>料金を確認</h3><p>容量・RAM・CPU・月額を比較してから、使いたいプランを選べます。</p></article>
-      <article class="feature-card"><div class="feature-number">02 / CREATE</div><h3>サーバーを作成</h3><p>サーバー名、プラン、実行環境を選び、新しいサーバーを作成します。</p></article>
-      <article class="feature-card"><div class="feature-number">03 / SERVERS</div><h3>作成後に管理</h3><p>Start / Stop / Restart / Delete はマイサーバーページにまとめています。</p></article>
-    </div>
-  </div>
-</section>
-<section class="section section-alt">
-  <div class="container">
-    <header class="section-heading"><span class="label">PURPOSE</span><h2>目的から選ぶ</h2><p>今やりたいことに合わせて、必要なページへ進めます。</p></header>
-    <div class="info-strip">
-      <a class="content-card purpose-card" href="/plans"><span class="route-chip">料金を決める</span><h3>自分に合うプランを比較する</h3><p>500MB無料から100GBまで、容量・RAM・CPU・月額を見比べて、使いたいプランを決めます。</p><div class="card-link">料金プランを見る <span>/plans →</span></div></a>
-      <a class="content-card purpose-card" href="/create"><span class="route-chip">新しく作る</span><h3>新しいサーバーを作成する</h3><p>サーバー名と実行環境を指定し、選んだプランで新しいサーバーを作成します。</p><div class="card-link">作成画面へ <span>/create →</span></div></a>
-      <a class="content-card purpose-card" href="/servers"><span class="route-chip">運用・管理する</span><h3>作成したサーバーを操作する</h3><p>稼働状態の確認、起動・停止・再起動、削除などの運用を行います。</p><div class="card-link">マイサーバーへ <span>/servers →</span></div></a>
-    </div>
-  </div>
-</section>
+<section class="trust-strip"><div class="container trust-grid"><div class="trust-item"><strong>アカウント管理</strong><span>契約者ごとに所有権を分離</span></div><div class="trust-item"><strong>契約ID発行</strong><span>サーバーと契約を紐づけ</span></div><div class="trust-item"><strong>更新日管理</strong><span>契約期間を記録</span></div><div class="trust-item"><strong>自動プロビジョニング</strong><span>Render / Docker Provider</span></div></div></section>
+<section class="section"><div class="container"><header class="section-heading"><span class="label">HOW IT WORKS</span><h2>契約から利用開始まで。</h2><p>「ボタンを押してサーバーを作る」だけではなく、契約情報を中心に管理します。</p></header><div class="feature-grid"><article class="feature-card"><div class="feature-number">01 / ACCOUNT</div><h3>利用者登録</h3><p>メールアドレスとパスワードで契約者アカウントを作成します。</p></article><article class="feature-card"><div class="feature-number">02 / CONTRACT</div><h3>プランを契約</h3><p>プラン・サーバー名・実行環境を決め、契約IDと更新日を発行します。</p></article><article class="feature-card"><div class="feature-number">03 / PROVISION</div><h3>サーバーを発行</h3><p>契約状態に応じて実サーバーを発行し、契約者専用画面から操作します。</p></article></div></div></section>
+<section class="section section-alt"><div class="container"><header class="section-heading"><span class="label">PURPOSE</span><h2>目的から選ぶ</h2><p>料金確認・新規契約・契約中サーバー管理をページごとに分けています。</p></header><div class="info-strip"><a class="content-card purpose-card" href="/plans"><span class="route-chip">料金を比較</span><h3>契約プランを選ぶ</h3><p>500MB無料から100GBまで、月額・RAM・CPUを比較します。</p><div class="card-link">料金プラン <span>/plans →</span></div></a><a class="content-card purpose-card" href="/create"><span class="route-chip">新規契約</span><h3>レンタルサーバーを契約する</h3><p>契約者アカウントに紐づく新しい契約を作成します。</p><div class="card-link">契約画面 <span>/create →</span></div></a><a class="content-card purpose-card" href="/dashboard"><span class="route-chip">契約を管理</span><h3>契約中サーバーを管理する</h3><p>契約状態、更新日、公開URL、起動・停止・解約を管理します。</p><div class="card-link">ダッシュボード <span>/dashboard →</span></div></a></div></div></section>
 {% endblock %}
