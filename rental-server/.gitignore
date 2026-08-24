@@ -3,3 +3,13 @@ logs/
 .windows-state.json
 __pycache__/
 *.pyc
+
+# Local configuration / secrets
+server.env
+.env
+.env.local
+.env.*
+!.env.example
+
+# Keep the safe template in Git
+!server.env.example
