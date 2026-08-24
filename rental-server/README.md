@@ -10,8 +10,11 @@ Windows 10/11では **Docker Desktop + Python + PowerShell** で動作する構�
 - インスタンス作成 / Start / Stop / Restart / Delete
 - ログ表示（直近200行）
 - Python / Node.js / Nginx テンプレート
+- プランをカードから選択してサーバー作成
 - Small: 256MB RAM / 0.25 CPU
 - Medium: 512MB RAM / 0.5 CPU
+- Large: 1GB RAM / 1.0 CPU
+- XLarge: 2GB RAM / 2.0 CPU
 - 最大インスタンス数の制限
 - DockerコンテナごとのCPU・RAM・PID制限
 - privileged無効、capabilities全削除、no-new-privileges
@@ -55,6 +58,19 @@ PowerShellで `rental-server` フォルダへ移動して、次を実行しま�
 ```
 
 ブラウザで `http://127.0.0.1:8080` を開いてログインしてください。
+
+## プラン選択
+
+管理画面では次の4プランから選択できます。
+
+| Plan | RAM | CPU |
+| --- | ---: | ---: |
+| Small | 256MB | 0.25 |
+| Medium | 512MB | 0.5 |
+| Large | 1GB | 1.0 |
+| XLarge | 2GB | 2.0 |
+
+プランカードをクリックしてから「このプランで作成」を押すと、そのCPU・RAM制限をDockerコンテナへ適用して作成します。
 
 ### 管理者パスワードを自分で指定する
 
