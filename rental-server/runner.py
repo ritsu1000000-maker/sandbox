@@ -15,24 +15,35 @@ MAX_INSTANCES = int(os.environ.get("MAX_INSTANCES", "10"))
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$")
 LABEL_KEY = "rental.server.instance"
 
+# Windows Docker Desktopではディスク容量の厳密なクォータは
+# ストレージドライバ依存になるため、storage_gb は契約プラン情報として管理します。
+# CPU/RAMはDockerコンテナへ実際の制限として適用されます。
 PLANS = {
     "small": {
-        "display_name": "Small",
+        "display_name": "1GB",
+        "storage_gb": 1,
+        "price_yen": 500,
         "mem_limit": "256m",
         "nano_cpus": 250_000_000,
     },
     "medium": {
-        "display_name": "Medium",
+        "display_name": "10GB",
+        "storage_gb": 10,
+        "price_yen": 1500,
         "mem_limit": "512m",
         "nano_cpus": 500_000_000,
     },
     "large": {
-        "display_name": "Large",
+        "display_name": "50GB",
+        "storage_gb": 50,
+        "price_yen": 2000,
         "mem_limit": "1g",
         "nano_cpus": 1_000_000_000,
     },
     "xlarge": {
-        "display_name": "XLarge",
+        "display_name": "100GB",
+        "storage_gb": 100,
+        "price_yen": 4000,
         "mem_limit": "2g",
         "nano_cpus": 2_000_000_000,
     },
@@ -96,10 +107,19 @@ def serialize(container):
         if bindings:
             published = bindings[0].get("HostPort")
             break
+
+    plan_id = container.labels.get("rental.server.plan", "unknown")
+    plan = PLANS.get(plan_id, {})
+    storage = container.labels.get("rental.server.storage_gb")
+    price = container.labels.get("rental.server.price_yen")
+
     return {
         "name": container.labels.get("rental.server.name", container.name),
         "template": container.labels.get("rental.server.template", "unknown"),
-        "plan": container.labels.get("rental.server.plan", "unknown"),
+        "plan": plan_id,
+        "plan_name": plan.get("display_name", plan_id),
+        "storage_gb": int(storage) if storage and storage.isdigit() else plan.get("storage_gb"),
+        "price_yen": int(price) if price and price.isdigit() else plan.get("price_yen"),
         "status": container.status,
         "host_port": int(published) if published else None,
         "container_id": container.short_id,
@@ -114,6 +134,24 @@ def health():
     except DockerException:
         docker_ok = False
     return jsonify({"ok": docker_ok, "service": "rental-server-runner"}), (200 if docker_ok else 503)
+
+
+@app.get("/plans")
+@auth_required
+def list_plans():
+    return jsonify({
+        "plans": [
+            {
+                "id": key,
+                "name": value["display_name"],
+                "storage_gb": value["storage_gb"],
+                "price_yen": value["price_yen"],
+                "memory": value["mem_limit"],
+                "cpu": value["nano_cpus"] / 1_000_000_000,
+            }
+            for key, value in PLANS.items()
+        ]
+    })
 
 
 @app.get("/instances")
@@ -178,6 +216,8 @@ def create_instance():
                 "rental.server.name": name,
                 "rental.server.template": template_name,
                 "rental.server.plan": plan_name,
+                "rental.server.storage_gb": str(plan["storage_gb"]),
+                "rental.server.price_yen": str(plan["price_yen"]),
             },
         )
         return jsonify({"instance": serialize(container)}), 201
