@@ -16,7 +16,9 @@
 | 50GB | 2,000円 | 1GB | 1.0 |
 | 100GB | 4,000円 | 2GB | 2.0 |
 
-現状、Windows Docker Desktopでは容量値は契約プラン情報として管理しています。CPU/RAM制限はDockerへ実際に適用します。厳密な永続ディスククォータは別途ストレージ機構が必要です。
+Windows Docker Desktopでは容量値は契約プラン情報として管理しています。CPU/RAM制限はDockerへ実際に適用します。厳密な永続ディスククォータは別途ストレージ機構が必要です。
+
+Render APIモードでは、表示している容量・RAM・CPUはレンタルサイト上のプラン情報です。Render側の実際のインスタンスタイプや永続ディスク容量とは別に管理されます。
 
 ## 利用者向け画面
 
@@ -30,7 +32,83 @@
 - Delete
 - 管理キーによるサーバー再登録
 
-作成したサーバーの管理キーはブラウザのLocal Storageへ保存されます。管理キーを紛失すると、そのブラウザ以外から管理できません。
+作成したサーバーの管理キーはブラウザのLocal Storageへ保存されます。
+
+# Render公開
+
+RenderではDocker Runnerへ接続せず、Render REST APIを使って利用者用Web Serviceを作成・管理します。
+
+## Render Web Service設定
+
+GitHubリポジトリ:
+
+```text
+https://github.com/ritsu1000000-maker/sandbox
+```
+
+設定:
+
+```text
+Branch: rental-server-mvp
+Root Directory: rental-server
+Language: Python 3
+Build Command: pip install -r requirements.txt
+Start Command: gunicorn app:app --bind 0.0.0.0:$PORT
+Health Check Path: /health
+```
+
+## Environment Variables
+
+RenderのWeb Serviceに次を追加します。
+
+```text
+BACKEND_PROVIDER=render
+RENDER_API_KEY=<Render API Key>
+RENDER_OWNER_ID=<Render Workspace ID>
+INSTANCE_KEY_SECRET=<長いランダム文字列>
+```
+
+任意設定:
+
+```text
+RENDER_TENANT_REPO=https://github.com/ritsu1000000-maker/sandbox
+RENDER_TENANT_BRANCH=rental-server-mvp
+RENDER_TENANT_REGION=singapore
+RENDER_SERVICE_PREFIX=rental
+```
+
+`RENDER_API_KEY` はRender DashboardのAccount Settingsで作成し、GitHubへコミットせずRenderのEnvironment Variableだけに保存してください。
+
+`RENDER_OWNER_ID` はRender WorkspaceのIDです。
+
+`INSTANCE_KEY_SECRET` は利用者用サーバーの管理キー生成に使う内部秘密値です。公開画面には表示されません。
+
+## 有料プランについて
+
+Render APIモードでは、初期状態で500MB無料プランだけ自動作成できます。
+
+有料プランを匿名ユーザーが自由に作成できるようにすると、Renderアカウント側へ実際の利用料金が発生する可能性があるため、決済確認を実装するまでは自動作成を無効にしています。
+
+`ALLOW_PAID_RENDER_PLANS=true` を設定するとコード上は有料Renderプランへのマッピングが有効になりますが、公開運用では先に決済確認・利用制限・不正利用対策を実装してください。
+
+## Render APIモードの構成
+
+```text
+利用者ブラウザ
+  |
+  v
+Rental Server Web (Render)
+  |
+  | Render REST API
+  v
+Render Workspace
+  |
+  +-- rental-example-free-py
+  +-- rental-example2-free-node
+  +-- rental-example3-free-nginx
+```
+
+Start / Stop / Restart / Delete はRender APIのResume / Suspend / Restart / Deleteへ変換されます。
 
 # Windows 10 / 11
 
@@ -73,7 +151,7 @@ docker compose up -d --build
 
 公開する場合は `RUNNER_TOKEN` を必ず十分長いランダム値へ変更してください。
 
-# 構成
+# Docker Runner構成
 
 ```text
 利用者ブラウザ
@@ -94,17 +172,8 @@ Docker Engine
 
 Runnerは外部へ直接公開しないでください。
 
-各利用者用サーバーには管理キーのSHA-256だけをDockerラベルとして保存し、生の管理キーは保存しません。
-
-# Renderについて
-
-このリポジトリの現在のRunnerはDocker Engineを直接操作して利用者用コンテナを作る方式です。そのため、Web画面だけをRender Web Serviceへ置いても、Render上でそのままDocker Runner部分まで動かすことはできません。
-
-Renderだけでレンタルサーバー生成まで完結させる場合は、RunnerをDocker SDK方式からRender API方式へ変更する必要があります。その場合は利用者の申し込みに応じてRender Serviceを作成・管理する構成へ変更します。
-
 # 今後
 
-- Render API Runner
 - 決済完了後の有料プラン有効化
 - ユーザーアカウント
 - 永続ディスク容量クォータ
@@ -112,4 +181,4 @@ Renderだけでレンタルサーバー生成まで完結させる場合は、Ru
 - HTTPS
 - 利用期限
 - CPU/RAMグラフ
-- リアルタイムログ
+- Render APIログ取得
