@@ -4,7 +4,6 @@ import argparse
 import os
 from pathlib import Path
 import secrets
-import shutil
 import sys
 
 from rental_core.env_loader import PROJECT_ROOT, load_local_environment
@@ -29,11 +28,13 @@ def init_env(force: bool = False) -> int:
         return 1
 
     text = template.read_text(encoding="utf-8")
+    text = text.replace("SESSION_SECRET=CHANGE_ME_GENERATED", f"SESSION_SECRET={secrets.token_hex(32)}")
     text = text.replace("INSTANCE_KEY_SECRET=CHANGE_ME_GENERATED", f"INSTANCE_KEY_SECRET={secrets.token_hex(32)}")
     text = text.replace("RUNNER_TOKEN=CHANGE_ME_GENERATED", f"RUNNER_TOKEN={secrets.token_hex(32)}")
     target.write_text(text, encoding="utf-8")
     print(f"created: {target}")
-    print("Edit RENDER_API_KEY / RENDER_OWNER_ID only when using Render provider.")
+    print("Local mode uses SQLite automatically.")
+    print("For Render, set RENDER_API_KEY / RENDER_OWNER_ID / DATABASE_URL in Render Environment.")
     return 0
 
 
@@ -42,13 +43,16 @@ def check_config() -> int:
     from rental_core.config import Settings
 
     settings = Settings.from_env()
+    database_kind = "postgres" if settings.database_url.startswith(("postgres://", "postgresql://")) else "sqlite"
     print("Rental Server configuration")
     print(f"  provider             : {settings.backend_provider}")
     print(f"  provider configured  : {settings.provider_configured}")
+    print(f"  database             : {database_kind}")
     print(f"  web                  : {settings.app_host}:{settings.app_port}")
     print(f"  runner               : {settings.runner_host}:{settings.runner_port}")
     print(f"  max instances        : {settings.max_instances}")
     print(f"  create limit/hour    : {settings.create_limit_per_hour}")
+    print(f"  lease days           : {settings.lease_days}")
     print(f"  log level            : {settings.log_level}")
     print(f"  env files            : {', '.join(str(x) for x in loaded) or '(none)'}")
 
@@ -57,14 +61,18 @@ def check_config() -> int:
         warnings.append("BACKEND_PROVIDER must be runner or render")
     if settings.backend_provider == "runner":
         if not settings.runner_token or settings.runner_token == "change-this-runner-token":
-            warnings.append("RUNNER_TOKEN is missing or still using the unsafe default")
+            warnings.append("RUNNER_TOKEN is missing or unsafe")
     if settings.backend_provider == "render":
         if not settings.render_api_key:
             warnings.append("RENDER_API_KEY is missing")
         if not settings.render_owner_id:
             warnings.append("RENDER_OWNER_ID is missing")
+        if database_kind != "postgres":
+            warnings.append("Production Render should use PostgreSQL DATABASE_URL so customer contracts survive deploys")
     if not settings.instance_key_secret:
         warnings.append("INSTANCE_KEY_SECRET is missing")
+    if not settings.session_secret:
+        warnings.append("SESSION_SECRET is missing")
 
     if warnings:
         print("\nWarnings:")
