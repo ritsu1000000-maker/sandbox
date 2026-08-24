@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}ダッシュボード｜Rental Server{% endblock %}
+{% block content %}
+<section class="page-hero">
+  <div class="container dashboard-hero-row">
+    <div><span class="page-label">CUSTOMER DASHBOARD</span><h1>ご契約サーバー</h1><p>契約状態、次回更新日、サーバー状態をここから管理できます。</p></div>
+    <a class="button button-primary" href="/create">新しいサーバーを契約</a>
+  </div>
+</section>
+<section class="section">
+  <div class="container">
+    {% if contracts %}
+      <div class="contract-grid">
+      {% for c in contracts %}
+        <article class="contract-card">
+          <div class="contract-card-head">
+            <div><span class="contract-id">契約 #{{ c.id }}</span><h2>{{ c.name }}</h2></div>
+            <span class="contract-status status-{{ c.status }}">{{ c.status }}</span>
+          </div>
+          <div class="contract-specs">
+            <div><span>プラン</span><strong>{{ c.plan_name }}</strong></div>
+            <div><span>月額</span><strong>¥{{ '{:,}'.format(c.price_yen) }}</strong></div>
+            <div><span>RAM</span><strong>{{ c.memory }}</strong></div>
+            <div><span>CPU</span><strong>{{ c.cpu }}</strong></div>
+          </div>
+          <div class="contract-meta"><span>次回更新</span><strong>{{ c.renews_at[:10] if c.renews_at else '-' }}</strong></div>
+          {% if c.status == 'pending_payment' %}
+            <a class="button button-outline wide-button" href="/billing">支払い待ちを確認</a>
+          {% elif c.status == 'canceled' %}
+            <span class="disabled-action">解約済み</span>
+          {% else %}
+            <a class="button button-outline wide-button" href="/servers/{{ c.id }}">サーバー管理を開く</a>
+          {% endif %}
+        </article>
+      {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty rental-empty"><h2>まだ契約がありません</h2><p>まずは500MB無料プランから始められます。</p><a class="button button-primary" href="/create">最初のサーバーを契約</a></div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}
