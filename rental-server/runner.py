@@ -1,6 +1,5 @@
 import hashlib
 import hmac
-import os
 import re
 from functools import wraps
 
@@ -8,11 +7,15 @@ import docker
 from docker.errors import APIError, DockerException, NotFound
 from flask import Flask, jsonify, request
 
+from rental_core.config import Settings
+
+settings = Settings.from_env()
+
 app = Flask(__name__)
 client = docker.from_env()
 
-RUNNER_TOKEN = os.environ.get("RUNNER_TOKEN", "change-this-runner-token")
-MAX_INSTANCES = int(os.environ.get("MAX_INSTANCES", "10"))
+RUNNER_TOKEN = settings.runner_token
+MAX_INSTANCES = settings.max_instances
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$")
 LABEL_KEY = "rental.server.instance"
 
@@ -80,6 +83,8 @@ TEMPLATES = {
 def auth_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
+        if not RUNNER_TOKEN:
+            return jsonify({"error": "runner token is not configured"}), 503
         value = request.headers.get("Authorization", "")
         expected = f"Bearer {RUNNER_TOKEN}"
         if not hmac.compare_digest(value, expected):
@@ -155,6 +160,7 @@ def serialize(container):
         "status": container.status,
         "host_port": int(published) if published else None,
         "container_id": container.short_id,
+        "provider": "runner",
     }
 
 
@@ -165,7 +171,13 @@ def health():
         docker_ok = True
     except DockerException:
         docker_ok = False
-    return jsonify({"ok": docker_ok, "service": "rental-server-runner"}), (200 if docker_ok else 503)
+    return jsonify({
+        "ok": docker_ok and bool(RUNNER_TOKEN),
+        "service": "rental-server-runner",
+        "docker": docker_ok,
+        "configured": bool(RUNNER_TOKEN),
+        "max_instances": MAX_INSTANCES,
+    }), (200 if docker_ok and RUNNER_TOKEN else 503)
 
 
 @app.get("/plans")
@@ -344,4 +356,4 @@ def logs(name: str):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("RUNNER_PORT", "9000")))
+    app.run(host=settings.runner_host, port=settings.runner_port)
