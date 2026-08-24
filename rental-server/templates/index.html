@@ -3,88 +3,309 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Rental Server</title>
+  <title>Rental Server｜シンプルなサーバーホスティング</title>
+  <meta name="description" content="無料500MBから選べる、シンプルなレンタルサーバーサービス。">
+  <meta name="theme-color" content="#1768c4">
   <style>
-    *{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:#090e1b;color:#eef2ff}.wrap{max-width:1180px;margin:auto;padding:28px}.hero{padding:28px 0 10px}.hero h1{margin:0;font-size:38px}.hero p{margin:10px 0;color:#91a2c6}.panel{margin-top:24px;background:#10172a;border:1px solid #23304d;border-radius:18px;padding:18px}.section-title{margin:0 0 10px;font-size:16px;color:#cbd6ef}.create{display:grid;grid-template-columns:2fr 1fr auto;gap:10px}.create input,.create select,.import-row input{background:#0b1222;color:#fff;border:1px solid #293858;border-radius:11px;padding:11px;font:inherit}.btn,button{border:0;border-radius:11px;padding:10px 14px;color:#fff;background:#6574ff;cursor:pointer;font-weight:700;font:inherit}.ghost{background:#202a44}.danger{background:#9c334d}.plan-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:14px 0}.plan-card{position:relative;display:block;background:#0b1222;border:1px solid #293858;border-radius:16px;padding:17px;cursor:pointer;transition:.15s ease}.plan-card:hover{border-color:#6676ff;transform:translateY(-1px)}.plan-card input{position:absolute;opacity:0;pointer-events:none}.plan-card:has(input:checked){border-color:#7b88ff;box-shadow:0 0 0 2px rgba(101,116,255,.18);background:#131c35}.plan-name{display:flex;align-items:center;justify-content:space-between;font-weight:900;font-size:22px}.check{width:19px;height:19px;border-radius:50%;border:2px solid #506080;display:grid;place-items:center}.plan-card:has(input:checked) .check{border-color:#7b88ff;background:#7b88ff}.plan-card:has(input:checked) .check:after{content:'✓';font-size:12px}.free-label{display:inline-block;margin-top:7px;background:#164f38;color:#93f5bd;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:900}.price{margin-top:10px;font-size:25px;font-weight:900}.price small{font-size:12px;color:#91a2c6;font-weight:600}.plan-spec{margin-top:10px;color:#a9b9d8;font-size:13px;line-height:1.7}.plan-note{margin-top:4px;color:#7184aa;font-size:11px}.notice{margin-top:12px;color:#93a5c9;font-size:12px;line-height:1.7}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:18px}.card{background:#121b31;border:1px solid #263655;border-radius:16px;padding:16px}.line{display:flex;justify-content:space-between;align-items:center;gap:10px}.name{font-size:19px;font-weight:800}.tag{font-size:12px;background:#243252;padding:5px 8px;border-radius:999px}.plan-badge{display:inline-block;margin-top:7px;font-size:12px;font-weight:700;color:#cbd4ff;background:#232f5c;padding:5px 8px;border-radius:999px}.meta{color:#9aabc9;font-size:13px;line-height:1.8;margin:10px 0}.actions{display:flex;gap:7px;flex-wrap:wrap}.actions button{padding:8px 10px;font-size:13px}.logs{white-space:pre-wrap;background:#060a13;border-radius:12px;padding:12px;max-height:240px;overflow:auto;color:#b9c8e7;font-family:ui-monospace,monospace;font-size:12px;margin-top:12px}.status-running{color:#67e8a5}.status-exited,.status-dead{color:#ff8b9f}.empty{color:#91a2c6;text-align:center;padding:35px}.msg{margin-top:12px;padding:10px 12px;border-radius:10px;display:none}.ok{display:block;background:#123b2b;color:#8ff0bb}.err{display:block;background:#4a1f2b;color:#ffb0c0}.keybox{margin-top:12px;background:#0a1020;border:1px solid #263655;border-radius:12px;padding:12px;font-size:12px;color:#a9b9d8}.import-row{display:grid;grid-template-columns:1fr 2fr auto;gap:8px;margin-top:10px}@media(max-width:1000px){.plan-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:720px){.create,.import-row{grid-template-columns:1fr}.plan-grid{grid-template-columns:1fr}.hero h1{font-size:30px}}
+    :root{
+      --blue:#1768c4;
+      --blue-dark:#0f4f9a;
+      --blue-soft:#edf5ff;
+      --text:#172033;
+      --muted:#667085;
+      --line:#dfe5ec;
+      --soft:#f6f8fb;
+      --white:#fff;
+      --green:#15803d;
+      --red:#b42318;
+      --shadow:0 10px 30px rgba(31,45,61,.07)
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;color:var(--text);background:#fff;line-height:1.7}
+    a{color:inherit;text-decoration:none}
+    button,input,select{font:inherit}
+    button{cursor:pointer}
+    .container{width:min(1160px,calc(100% - 40px));margin:auto}
+    .topline{height:4px;background:var(--blue)}
+    .site-header{height:76px;background:#fff;border-bottom:1px solid #edf0f4;position:sticky;top:0;z-index:20}
+    .header-inner{height:100%;display:flex;align-items:center;justify-content:space-between;gap:28px}
+    .brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:20px;letter-spacing:.02em}
+    .brand-mark{width:34px;height:34px;border-radius:9px;background:var(--blue);display:grid;place-items:center;color:#fff;font-size:16px;box-shadow:0 6px 15px rgba(23,104,196,.18)}
+    .brand span{color:var(--blue)}
+    .global-nav{display:flex;align-items:center;gap:28px;font-size:14px;font-weight:600;color:#455064}
+    .global-nav a:hover{color:var(--blue)}
+    .header-action{padding:9px 16px;border:1px solid #cdd7e3;border-radius:8px;font-size:14px;font-weight:700;background:#fff}
+    .header-action:hover{border-color:var(--blue);color:var(--blue)}
+    .notice-bar{border-bottom:1px solid #e8edf3;background:#f8fafc}
+    .notice-inner{min-height:44px;display:flex;align-items:center;gap:12px;font-size:13px;color:#586579}
+    .notice-label{font-weight:800;color:var(--blue);background:#e9f3ff;padding:3px 8px;border-radius:5px}
+    .hero{padding:78px 0 70px}
+    .hero-grid{display:grid;grid-template-columns:1.1fr .9fr;gap:64px;align-items:center}
+    .eyebrow{display:inline-flex;align-items:center;gap:8px;color:var(--blue);font-weight:800;font-size:13px;letter-spacing:.06em;margin-bottom:16px}
+    .eyebrow:before{content:"";width:24px;height:2px;background:var(--blue)}
+    .hero h1{font-size:clamp(38px,5vw,62px);line-height:1.22;letter-spacing:-.035em;margin:0 0 22px;font-weight:850}
+    .hero h1 strong{color:var(--blue)}
+    .hero-lead{font-size:17px;color:#5e6a7d;max-width:680px;margin:0 0 30px}
+    .hero-actions{display:flex;gap:12px;flex-wrap:wrap}
+    .button{border:0;border-radius:8px;padding:12px 20px;font-weight:800;font-size:14px;display:inline-flex;align-items:center;justify-content:center;transition:.15s ease}
+    .button-primary{background:var(--blue);color:#fff;box-shadow:0 6px 16px rgba(23,104,196,.2)}
+    .button-primary:hover{background:var(--blue-dark);transform:translateY(-1px)}
+    .button-outline{background:#fff;color:#354052;border:1px solid #cbd5df}
+    .button-outline:hover{border-color:var(--blue);color:var(--blue)}
+    .hero-note{margin:16px 0 0;color:#8a94a5;font-size:12px}
+    .hero-visual{background:linear-gradient(145deg,#f7fbff,#edf5ff);border:1px solid #d9e8f8;border-radius:22px;min-height:360px;padding:28px;position:relative;overflow:hidden;box-shadow:var(--shadow)}
+    .hero-visual:after{content:"";position:absolute;width:260px;height:260px;border-radius:50%;background:rgba(23,104,196,.07);right:-80px;bottom:-100px}
+    .server-window{position:relative;z-index:1;background:#fff;border:1px solid #dce5ef;border-radius:14px;box-shadow:0 16px 35px rgba(41,73,110,.09);overflow:hidden;margin-top:25px}
+    .window-bar{height:42px;border-bottom:1px solid #e8edf2;display:flex;align-items:center;gap:7px;padding:0 14px}
+    .dot{width:8px;height:8px;border-radius:50%;background:#d4dbe5}
+    .server-body{padding:18px}
+    .metric{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #edf1f5;font-size:13px}
+    .metric:last-child{border:0}
+    .metric strong{font-size:14px}
+    .status-ok{color:var(--green);font-weight:800}
+    .trust-strip{border-top:1px solid #edf1f5;border-bottom:1px solid #edf1f5;background:#fbfcfe}
+    .trust-grid{display:grid;grid-template-columns:repeat(4,1fr)}
+    .trust-item{padding:25px 22px;border-right:1px solid #e7ebf0}
+    .trust-item:last-child{border-right:0}
+    .trust-item strong{display:block;font-size:15px;margin-bottom:3px}
+    .trust-item span{color:#7a8698;font-size:12px}
+    .section{padding:82px 0}
+    .section-alt{background:var(--soft);border-top:1px solid #eef1f5;border-bottom:1px solid #eef1f5}
+    .section-heading{margin-bottom:32px}
+    .label{display:block;color:var(--blue);font-size:12px;font-weight:900;letter-spacing:.14em;margin-bottom:8px}
+    .section-heading h2{margin:0 0 10px;font-size:32px;letter-spacing:-.02em}
+    .section-heading p{margin:0;color:#687588;font-size:14px}
+    .feature-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+    .feature-card{background:#fff;border:1px solid #e1e6ec;border-radius:12px;padding:24px}
+    .feature-number{font-size:11px;font-weight:900;color:var(--blue);letter-spacing:.12em;margin-bottom:12px}
+    .feature-card h3{margin:0 0 8px;font-size:18px}
+    .feature-card p{margin:0;color:#6d7888;font-size:13px}
+    .plan-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+    .plan-card{position:relative;background:#fff;border:1px solid #dce3ea;border-radius:12px;padding:22px 18px;cursor:pointer;transition:.16s ease;min-height:260px;display:flex;flex-direction:column}
+    .plan-card:hover{border-color:#9ebfe3;transform:translateY(-2px);box-shadow:0 10px 24px rgba(25,65,105,.07)}
+    .plan-card input{position:absolute;opacity:0;pointer-events:none}
+    .plan-card:has(input:checked){border:2px solid var(--blue);padding:21px 17px;box-shadow:0 10px 28px rgba(23,104,196,.1)}
+    .plan-card:has(input:checked):before{content:"選択中";position:absolute;top:-12px;right:12px;background:var(--blue);color:#fff;font-size:10px;font-weight:900;padding:3px 8px;border-radius:999px}
+    .plan-name{font-size:24px;font-weight:850;letter-spacing:-.02em}
+    .free-label{display:inline-flex;align-self:flex-start;margin-top:8px;color:#14713b;background:#eaf8ef;border:1px solid #ccebd6;border-radius:5px;padding:2px 7px;font-size:10px;font-weight:900}
+    .price{margin:16px 0 14px;font-size:27px;font-weight:900;letter-spacing:-.02em}
+    .price small{font-size:11px;font-weight:500;color:#8691a1}
+    .plan-spec{border-top:1px solid #edf0f3;padding-top:13px;color:#596678;font-size:12px;line-height:1.9}
+    .plan-note{margin-top:auto;padding-top:12px;color:#8b95a4;font-size:11px}
+    .application-box{background:#fff;border:1px solid #dfe5ec;border-radius:14px;padding:28px;box-shadow:0 6px 20px rgba(37,57,80,.04)}
+    .form-grid{display:grid;grid-template-columns:1.6fr 1fr auto;gap:12px;align-items:end}
+    .field label{display:block;font-size:12px;font-weight:800;margin-bottom:7px;color:#4d596a}
+    .field input,.field select,.import-row input{width:100%;height:44px;border:1px solid #ccd5df;border-radius:8px;background:#fff;color:#202b3c;padding:0 12px;outline:none}
+    .field input:focus,.field select:focus,.import-row input:focus{border-color:#72a4d7;box-shadow:0 0 0 3px rgba(23,104,196,.08)}
+    .create-btn{height:44px;white-space:nowrap}
+    .small-note{font-size:12px;color:#7b8797;margin:13px 0 0}
+    .msg{display:none;margin-top:14px;border-radius:8px;padding:11px 13px;font-size:13px}
+    .msg.ok{display:block;color:#126b39;background:#ebf8f0;border:1px solid #cdebd8}
+    .msg.err{display:block;color:#a1281d;background:#fff1f0;border:1px solid #f3d0cd}
+    .server-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px}
+    .server-card{background:#fff;border:1px solid #dde4eb;border-radius:12px;padding:20px;box-shadow:0 4px 16px rgba(37,57,80,.035)}
+    .server-head{display:flex;justify-content:space-between;gap:12px;align-items:center}
+    .server-name{font-size:18px;font-weight:850}
+    .tag{font-size:11px;font-weight:800;border-radius:999px;padding:4px 8px;background:#f0f3f6;color:#667085}
+    .status-running{background:#eaf8ef;color:#14713b}
+    .status-exited,.status-dead{background:#fff0ee;color:#b42318}
+    .plan-badge{display:inline-block;margin-top:9px;border:1px solid #d8e5f4;background:#f3f8fe;color:#285e98;border-radius:6px;padding:5px 8px;font-size:11px;font-weight:800}
+    .meta{font-size:12px;color:#6c7788;line-height:1.9;margin:12px 0}
+    .meta a{color:var(--blue);font-weight:700}
+    .actions{display:flex;gap:7px;flex-wrap:wrap;border-top:1px solid #edf0f4;padding-top:13px}
+    .actions button,.import-btn{border:1px solid #cfd8e2;background:#fff;color:#384457;border-radius:7px;padding:7px 10px;font-size:12px;font-weight:800}
+    .actions button:hover,.import-btn:hover{border-color:#8db2da;color:var(--blue)}
+    .actions .primary-action{background:var(--blue);border-color:var(--blue);color:#fff}
+    .actions .danger{color:var(--red);border-color:#efc7c2}
+    .keybox{margin-top:12px;padding:10px 12px;background:#fafbfc;border:1px solid #e8ecf0;border-radius:7px;color:#7b8796;font-size:11px}
+    .logs{display:none;margin-top:12px;background:#172033;color:#d9e2ef;border-radius:8px;padding:12px;white-space:pre-wrap;max-height:230px;overflow:auto;font:11px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace}
+    .empty{grid-column:1/-1;text-align:center;border:1px dashed #d8e0e8;border-radius:10px;padding:38px;color:#8a95a4;background:#fff}
+    .import-box{background:#fff;border:1px solid #dfe5ec;border-radius:12px;padding:22px}
+    .import-row{display:grid;grid-template-columns:1fr 2fr auto;gap:10px}
+    .import-btn{height:44px;padding:0 16px}
+    footer{border-top:1px solid #e9edf2;padding:30px 0 38px;color:#8490a0;font-size:12px}
+    .footer-inner{display:flex;justify-content:space-between;gap:20px;align-items:center}
+    @media(max-width:1000px){
+      .global-nav{display:none}.hero-grid{grid-template-columns:1fr}.hero-visual{min-height:300px}.trust-grid{grid-template-columns:repeat(2,1fr)}.trust-item:nth-child(2){border-right:0}.trust-item:nth-child(-n+2){border-bottom:1px solid #e7ebf0}.plan-grid{grid-template-columns:repeat(2,1fr)}.feature-grid{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr 1fr}.create-btn{grid-column:1/-1}.plan-card:last-child{grid-column:span 2}
+    }
+    @media(max-width:640px){
+      .container{width:min(100% - 28px,1160px)}.site-header{height:66px}.header-action{display:none}.hero{padding:52px 0}.hero h1{font-size:38px}.hero-grid{gap:36px}.trust-grid{grid-template-columns:1fr}.trust-item{border-right:0;border-bottom:1px solid #e7ebf0}.trust-item:last-child{border-bottom:0}.section{padding:62px 0}.section-heading h2{font-size:27px}.plan-grid{grid-template-columns:1fr}.plan-card:last-child{grid-column:auto}.form-grid,.import-row{grid-template-columns:1fr}.server-grid{grid-template-columns:1fr}.footer-inner{flex-direction:column;align-items:flex-start}
+    }
   </style>
 </head>
 <body>
-<div class="wrap">
-  <header class="hero">
-    <h1>Rental Server</h1>
-    <p>プランを選んで、自分専用のサーバーを作成できます。</p>
-  </header>
+<div class="topline"></div>
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="brand" href="#top"><span class="brand-mark">RS</span><span>RENTAL</span> SERVER</a>
+    <nav class="global-nav" aria-label="メインナビゲーション">
+      <a href="#features">サービスの特長</a>
+      <a href="#pricing">料金プラン</a>
+      <a href="#apply">サーバー作成</a>
+      <a href="#servers">マイサーバー</a>
+    </nav>
+    <a class="header-action" href="#servers">マイサーバー</a>
+  </div>
+</header>
 
-  <section class="panel">
-    <h2 class="section-title">サーバーを作成</h2>
-    <div class="create">
-      <input id="name" placeholder="server-name (3〜32文字)">
-      <select id="template">
-        <option value="python-web">Python Web</option>
-        <option value="node-web">Node Web</option>
-        <option value="nginx">Nginx</option>
-      </select>
-      <button onclick="createInstance()">このプランで作成</button>
-    </div>
-
-    <h2 class="section-title" style="margin-top:20px">容量プラン</h2>
-    <div class="plan-grid">
-      <label class="plan-card">
-        <input type="radio" name="plan" value="free" checked>
-        <span class="plan-name">500MB <span class="check"></span></span>
-        <span class="free-label">FREE</span>
-        <div class="price">¥0 <small>/ 月</small></div>
-        <div class="plan-spec">RAM 128MB<br>CPU 0.1</div>
-        <div class="plan-note">お試し向け</div>
-      </label>
-      <label class="plan-card">
-        <input type="radio" name="plan" value="small">
-        <span class="plan-name">1GB <span class="check"></span></span>
-        <div class="price">¥500 <small>/ 月</small></div>
-        <div class="plan-spec">RAM 256MB<br>CPU 0.25</div>
-        <div class="plan-note">小規模サイト向け</div>
-      </label>
-      <label class="plan-card">
-        <input type="radio" name="plan" value="medium">
-        <span class="plan-name">10GB <span class="check"></span></span>
-        <div class="price">¥1,500 <small>/ 月</small></div>
-        <div class="plan-spec">RAM 512MB<br>CPU 0.5</div>
-        <div class="plan-note">小規模アプリ向け</div>
-      </label>
-      <label class="plan-card">
-        <input type="radio" name="plan" value="large">
-        <span class="plan-name">50GB <span class="check"></span></span>
-        <div class="price">¥2,000 <small>/ 月</small></div>
-        <div class="plan-spec">RAM 1GB<br>CPU 1.0</div>
-        <div class="plan-note">通常運用向け</div>
-      </label>
-      <label class="plan-card">
-        <input type="radio" name="plan" value="xlarge">
-        <span class="plan-name">100GB <span class="check"></span></span>
-        <div class="price">¥4,000 <small>/ 月</small></div>
-        <div class="plan-spec">RAM 2GB<br>CPU 2.0</div>
-        <div class="plan-note">大容量プラン</div>
-      </label>
-    </div>
-
-    <div class="notice">管理者ログインはありません。サーバー作成時に専用の管理キーを発行し、このブラウザに保存します。</div>
-    <div id="message" class="msg"></div>
-  </section>
-
-  <section class="panel">
-    <h2 class="section-title">このブラウザのサーバー</h2>
-    <div id="instances" class="grid"></div>
-  </section>
-
-  <section class="panel">
-    <h2 class="section-title">管理キーを持っているサーバーを追加</h2>
-    <div class="import-row">
-      <input id="importName" placeholder="server-name">
-      <input id="importKey" placeholder="management key">
-      <button class="ghost" onclick="importServer()">追加</button>
-    </div>
-  </section>
+<div class="notice-bar">
+  <div class="container notice-inner">
+    <span class="notice-label">お知らせ</span>
+    <span>500MBの無料プランを提供しています。まずは小さく試せます。</span>
+  </div>
 </div>
+
+<main>
+  <section class="hero" id="top">
+    <div class="container hero-grid">
+      <div>
+        <div class="eyebrow">APPLICATION HOSTING</div>
+        <h1>サーバー運用を、<br><strong>もっとシンプルに。</strong></h1>
+        <p class="hero-lead">Python・Node.js・Nginxの実行環境を、用途に合わせた容量プランから選択。サーバーの作成から起動・停止・ログ確認までブラウザで管理できます。</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#apply">サーバーを作成する</a>
+          <a class="button button-outline" href="#pricing">料金プランを見る</a>
+        </div>
+        <p class="hero-note">500MBプランは月額0円。管理キーは作成したブラウザに保存されます。</p>
+      </div>
+      <aside class="hero-visual" aria-label="サーバー管理画面イメージ">
+        <div class="server-window">
+          <div class="window-bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+          <div class="server-body">
+            <div class="metric"><span>Server</span><strong>my-app</strong></div>
+            <div class="metric"><span>Status</span><span class="status-ok">● Running</span></div>
+            <div class="metric"><span>Plan</span><strong>10GB</strong></div>
+            <div class="metric"><span>Runtime</span><strong>Python Web</strong></div>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <section class="trust-strip" aria-label="サービス概要">
+    <div class="container trust-grid">
+      <div class="trust-item"><strong>500MB 無料</strong><span>初めての利用や検証に</span></div>
+      <div class="trust-item"><strong>最大100GB</strong><span>用途に合わせて選択</span></div>
+      <div class="trust-item"><strong>Web管理</strong><span>起動・停止・ログ確認</span></div>
+      <div class="trust-item"><strong>3つの実行環境</strong><span>Python / Node.js / Nginx</span></div>
+    </div>
+  </section>
+
+  <section class="section" id="features">
+    <div class="container">
+      <header class="section-heading">
+        <span class="label">SERVICE FEATURES</span>
+        <h2>わかりやすく、必要な機能だけ。</h2>
+        <p>複雑な設定を減らし、サーバーを使い始めるまでの流れをシンプルにしています。</p>
+      </header>
+      <div class="feature-grid">
+        <article class="feature-card"><div class="feature-number">FEATURE 01</div><h3>用途に合わせた容量</h3><p>500MBから100GBまで、5段階のプランから選択できます。</p></article>
+        <article class="feature-card"><div class="feature-number">FEATURE 02</div><h3>ブラウザから管理</h3><p>サーバーの起動・停止・再起動・ログ確認をひとつの画面から操作できます。</p></article>
+        <article class="feature-card"><div class="feature-number">FEATURE 03</div><h3>サーバー専用管理キー</h3><p>管理者ログインではなく、作成したサーバーごとのキーで操作権限を分離します。</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-alt" id="pricing">
+    <div class="container">
+      <header class="section-heading">
+        <span class="label">PRICE</span>
+        <h2>料金プラン</h2>
+        <p>利用したい容量を選択してください。選んだプランはこの下のサーバー作成フォームに反映されます。</p>
+      </header>
+      <div class="plan-grid">
+        <label class="plan-card">
+          <input type="radio" name="plan" value="free" checked>
+          <div class="plan-name">500MB</div><span class="free-label">FREE</span>
+          <div class="price">¥0 <small>/ 月</small></div>
+          <div class="plan-spec">RAM 128MB<br>CPU 0.1</div>
+          <div class="plan-note">お試し・軽量用途向け</div>
+        </label>
+        <label class="plan-card">
+          <input type="radio" name="plan" value="small">
+          <div class="plan-name">1GB</div>
+          <div class="price">¥500 <small>/ 月</small></div>
+          <div class="plan-spec">RAM 256MB<br>CPU 0.25</div>
+          <div class="plan-note">小規模サイト向け</div>
+        </label>
+        <label class="plan-card">
+          <input type="radio" name="plan" value="medium">
+          <div class="plan-name">10GB</div>
+          <div class="price">¥1,500 <small>/ 月</small></div>
+          <div class="plan-spec">RAM 512MB<br>CPU 0.5</div>
+          <div class="plan-note">小規模アプリ向け</div>
+        </label>
+        <label class="plan-card">
+          <input type="radio" name="plan" value="large">
+          <div class="plan-name">50GB</div>
+          <div class="price">¥2,000 <small>/ 月</small></div>
+          <div class="plan-spec">RAM 1GB<br>CPU 1.0</div>
+          <div class="plan-note">通常運用向け</div>
+        </label>
+        <label class="plan-card">
+          <input type="radio" name="plan" value="xlarge">
+          <div class="plan-name">100GB</div>
+          <div class="price">¥4,000 <small>/ 月</small></div>
+          <div class="plan-spec">RAM 2GB<br>CPU 2.0</div>
+          <div class="plan-note">大容量用途向け</div>
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="apply">
+    <div class="container">
+      <header class="section-heading">
+        <span class="label">GET STARTED</span>
+        <h2>サーバーを作成</h2>
+        <p>サーバー名と実行環境を決めたら、選択中のプランで作成します。</p>
+      </header>
+      <div class="application-box">
+        <div class="form-grid">
+          <div class="field"><label for="name">サーバー名</label><input id="name" placeholder="my-server"></div>
+          <div class="field"><label for="template">実行環境</label><select id="template"><option value="python-web">Python Web</option><option value="node-web">Node.js Web</option><option value="nginx">Nginx</option></select></div>
+          <button class="button button-primary create-btn" onclick="createInstance()">この内容で作成</button>
+        </div>
+        <p class="small-note" id="selectedPlanText">選択中：500MB / ¥0 月</p>
+        <div id="message" class="msg"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section-alt" id="servers">
+    <div class="container">
+      <header class="section-heading">
+        <span class="label">MY SERVERS</span>
+        <h2>マイサーバー</h2>
+        <p>このブラウザに保存されている管理キーを使って、あなたのサーバーだけを表示します。</p>
+      </header>
+      <div id="instances" class="server-grid"></div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="container">
+      <header class="section-heading">
+        <span class="label">IMPORT</span>
+        <h2>既存サーバーを追加</h2>
+        <p>別の端末で作成したサーバーは、サーバー名と管理キーでこのブラウザに追加できます。</p>
+      </header>
+      <div class="import-box">
+        <div class="import-row">
+          <input id="importName" placeholder="server-name">
+          <input id="importKey" placeholder="management key">
+          <button class="import-btn" onclick="importServer()">追加する</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="container footer-inner"><div class="brand"><span class="brand-mark">RS</span><span>RENTAL</span> SERVER</div><div>Simple application hosting.</div></div>
+</footer>
+
 <script>
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
@@ -102,11 +323,14 @@ function items(){try{return JSON.parse(localStorage.getItem(STORE)||'[]')}catch{
 function save(list){localStorage.setItem(STORE,JSON.stringify(list))}
 function remember(name,key){const list=items().filter(x=>x.name!==name);list.push({name,key});save(list)}
 function forget(name){save(items().filter(x=>x.name!==name))}
-async function api(path,options={}){const r=await fetch(path,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options});const data=await r.json().catch(()=>({error:'invalid response'}));if(!r.ok)throw new Error(data.error||`HTTP ${r.status}`);return data}
 function keyFor(name){return items().find(x=>x.name===name)?.key||''}
+async function api(path,options={}){const r=await fetch(path,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options});const data=await r.json().catch(()=>({error:'invalid response'}));if(!r.ok)throw new Error(data.error||`HTTP ${r.status}`);return data}
+function updateSelectedPlan(){const id=document.querySelector('input[name="plan"]:checked')?.value||'free';const p=PLAN_META[id];$('#selectedPlanText').textContent=`選択中：${p.name} / ${yen(p.price)} 月`}
+document.querySelectorAll('input[name="plan"]').forEach(el=>el.addEventListener('change',updateSelectedPlan));
+
 async function load(){
   const root=$('#instances');const stored=items();
-  if(!stored.length){root.innerHTML='<div class="empty">まだサーバーがありません</div>';return}
+  if(!stored.length){root.innerHTML='<div class="empty">まだサーバーがありません。上のフォームから作成できます。</div>';return}
   const cards=[];
   for(const saved of stored){
     try{
@@ -114,37 +338,38 @@ async function load(){
       const i=data.instance;const url=i.host_port?`${location.protocol}//${location.hostname}:${i.host_port}`:null;
       const plan=PLAN_META[i.plan]||{storage:i.storage_gb?`${i.storage_gb}GB`:'-',price:i.price_yen||0,ram:'-',cpu:'-'};
       const storage=i.storage_gb===0.5?'500MB':(i.storage_gb?`${i.storage_gb}GB`:plan.storage);
-      cards.push(`<article class="card">
-        <div class="line"><span class="name">${esc(i.name)}</span><span class="tag status-${esc(i.status)}">${esc(i.status)}</span></div>
+      cards.push(`<article class="server-card">
+        <div class="server-head"><span class="server-name">${esc(i.name)}</span><span class="tag status-${esc(i.status)}">${esc(i.status)}</span></div>
         <span class="plan-badge">${esc(storage)} · ${esc(yen(i.price_yen??plan.price))}/月 · RAM ${esc(plan.ram)} · CPU ${esc(plan.cpu)}</span>
-        <div class="meta">Template: ${esc(i.template)}<br>Container: ${esc(i.container_id)}<br>${url?`URL: <a href="${esc(url)}" target="_blank" style="color:#8fa8ff">${esc(url)}</a>`:'URL: -'}</div>
+        <div class="meta">実行環境：${esc(i.template)}<br>Container：${esc(i.container_id)}<br>${url?`URL：<a href="${esc(url)}" target="_blank">${esc(url)}</a>`:'URL：-'}</div>
         <div class="actions">
-          <button onclick="act('${esc(i.name)}','start')">Start</button>
-          <button class="ghost" onclick="act('${esc(i.name)}','stop')">Stop</button>
-          <button class="ghost" onclick="act('${esc(i.name)}','restart')">Restart</button>
-          <button class="ghost" onclick="showLogs('${esc(i.name)}')">Logs</button>
+          <button class="primary-action" onclick="act('${esc(i.name)}','start')">Start</button>
+          <button onclick="act('${esc(i.name)}','stop')">Stop</button>
+          <button onclick="act('${esc(i.name)}','restart')">Restart</button>
+          <button onclick="showLogs('${esc(i.name)}')">Logs</button>
           <button class="danger" onclick="removeInstance('${esc(i.name)}')">Delete</button>
         </div>
         <div class="keybox">管理キーはこのブラウザに保存されています。</div>
-        <div id="logs-${esc(i.name)}" class="logs" style="display:none"></div>
+        <div id="logs-${esc(i.name)}" class="logs"></div>
       </article>`);
-    }catch(e){cards.push(`<article class="card"><div class="name">${esc(saved.name)}</div><div class="meta">読み込み失敗: ${esc(e.message)}</div><button class="danger" onclick="forgetServer('${esc(saved.name)}')">この端末から削除</button></article>`)}
+    }catch(e){cards.push(`<article class="server-card"><div class="server-name">${esc(saved.name)}</div><div class="meta">読み込み失敗：${esc(e.message)}</div><div class="actions"><button class="danger" onclick="forgetServer('${esc(saved.name)}')">この端末から削除</button></div></article>`)}
   }
   root.innerHTML=cards.join('');
 }
+
 async function createInstance(){
   const name=$('#name').value.trim().toLowerCase();const plan=document.querySelector('input[name="plan"]:checked')?.value||'free';
   try{
     const data=await api('/api/instances',{method:'POST',body:JSON.stringify({name,template:$('#template').value,plan})});
-    remember(data.instance.name,data.manage_key);$('#name').value='';const p=PLAN_META[plan];message(`${p.name}・${yen(p.price)}/月プランで作成しました`,true);await load();
+    remember(data.instance.name,data.manage_key);$('#name').value='';const p=PLAN_META[plan];message(`${p.name}・${yen(p.price)}/月プランで作成しました`,true);await load();location.hash='servers';
   }catch(e){message(e.message)}
 }
 async function act(name,action){const key=keyFor(name);try{await api(`/api/instances/${encodeURIComponent(name)}/${action}`,{method:'POST',headers:{'X-Instance-Key':key}});await load()}catch(e){message(e.message)}}
 async function removeInstance(name){if(!confirm(`${name} を削除しますか？`))return;const key=keyFor(name);try{await api(`/api/instances/${encodeURIComponent(name)}`,{method:'DELETE',headers:{'X-Instance-Key':key}});forget(name);message('削除しました',true);await load()}catch(e){message(e.message)}}
 async function showLogs(name){const key=keyFor(name);try{const d=await api(`/api/instances/${encodeURIComponent(name)}/logs`,{headers:{'X-Instance-Key':key}});const el=document.getElementById(`logs-${name}`);el.style.display='block';el.textContent=d.logs||'(no logs)'}catch(e){message(e.message)}}
-async function importServer(){const name=$('#importName').value.trim().toLowerCase();const key=$('#importKey').value.trim();if(!name||!key){message('サーバー名と管理キーを入力してください');return}try{await api(`/api/instances/${encodeURIComponent(name)}`,{headers:{'X-Instance-Key':key}});remember(name,key);$('#importName').value='';$('#importKey').value='';message('サーバーを追加しました',true);await load()}catch(e){message(e.message)}}
+async function importServer(){const name=$('#importName').value.trim().toLowerCase();const key=$('#importKey').value.trim();if(!name||!key){message('サーバー名と管理キーを入力してください');return}try{await api(`/api/instances/${encodeURIComponent(name)}`,{headers:{'X-Instance-Key':key}});remember(name,key);$('#importName').value='';$('#importKey').value='';message('サーバーを追加しました',true);await load();location.hash='servers'}catch(e){message(e.message)}}
 function forgetServer(name){forget(name);load()}
-load();setInterval(load,15000);
+updateSelectedPlan();load();setInterval(load,15000);
 </script>
 </body>
 </html>
