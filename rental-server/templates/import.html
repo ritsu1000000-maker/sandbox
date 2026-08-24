@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}サーバー追加｜Rental Server{% endblock %}
+{% block content %}
+<section class="page-hero"><div class="container"><span class="page-label">IMPORT SERVER</span><h1>既存サーバーを追加</h1><p>別の端末やブラウザで作成したサーバーを、サーバー名と管理キーを使ってこのブラウザへ登録します。</p></div></section>
+<section class="section"><div class="container"><div class="import-box"><form id="importForm"><div class="import-row"><input id="importName" placeholder="server-name" required><input id="importKey" placeholder="management key" required><button class="button button-primary import-btn" type="submit">追加する</button></div><p class="small-note">管理キーはサーバー操作権限そのものです。公開せず、自分だけで保管してください。</p><div id="message" class="msg"></div></form></div></div></section>
+<section class="section section-alt"><div class="container"><div class="content-card"><h3>追加後は /servers へ</h3><p>認証できたサーバーはこのブラウザのLocal Storageに登録され、マイサーバーページからStart / Stop / Restart / Logs / Deleteを操作できます。</p><p style="margin-top:16px"><a class="button button-outline" href="/servers">マイサーバーを見る</a></p></div></div></section>
+{% endblock %}
