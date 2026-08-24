@@ -39,8 +39,11 @@ class Settings:
 
     @classmethod
     def from_env(cls):
+        explicit_provider = os.environ.get("BACKEND_PROVIDER", "").strip().lower()
+        on_render = os.environ.get("RENDER", "").strip().lower() in {"1", "true", "yes"} or bool(os.environ.get("RENDER_SERVICE_ID"))
+        backend_provider = explicit_provider or ("render" if on_render else "runner")
         return cls(
-            backend_provider=os.environ.get("BACKEND_PROVIDER", "runner").strip().lower(),
+            backend_provider=backend_provider,
             runner_url=os.environ.get("RUNNER_URL", "http://runner:9000").rstrip("/"),
             runner_token=os.environ.get("RUNNER_TOKEN", "change-this-runner-token"),
             render_api_key=os.environ.get("RENDER_API_KEY", "").strip(),
