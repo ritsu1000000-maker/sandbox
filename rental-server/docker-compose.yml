@@ -1,17 +1,20 @@
 services:
   control:
     build: .
-    command: gunicorn -w 2 -b 0.0.0.0:8080 app:app
+    command: python server.py web
     restart: unless-stopped
     ports:
       - "8080:8080"
+    env_file:
+      - server.env
     environment:
-      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-change-me-now}"
-      SESSION_SECRET: "${SESSION_SECRET:-replace-this-session-secret}"
-      RUNNER_URL: "http://runner:9000"
-      RUNNER_TOKEN: "${RUNNER_TOKEN:-replace-this-runner-token}"
+      BACKEND_PROVIDER: runner
+      APP_HOST: 0.0.0.0
+      PORT: "8080"
+      RUNNER_URL: http://runner:9000
     depends_on:
-      - runner
+      runner:
+        condition: service_healthy
     read_only: true
     tmpfs:
       - /tmp:size=32m,noexec,nosuid
@@ -19,17 +22,32 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   runner:
     build: .
-    command: gunicorn -w 1 -b 0.0.0.0:9000 runner:app
+    command: python server.py runner
     restart: unless-stopped
+    env_file:
+      - server.env
     environment:
-      RUNNER_TOKEN: "${RUNNER_TOKEN:-replace-this-runner-token}"
-      MAX_INSTANCES: "${MAX_INSTANCES:-10}"
+      BACKEND_PROVIDER: runner
+      RUNNER_HOST: 0.0.0.0
+      RUNNER_PORT: "9000"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
