@@ -1,0 +1,5 @@
+.venv/
+logs/
+.windows-state.json
+__pycache__/
+*.pyc
