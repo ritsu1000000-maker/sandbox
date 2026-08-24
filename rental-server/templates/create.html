@@ -17,7 +17,11 @@
       <form id="createForm">
         <input type="hidden" id="plan" value="free">
         <div class="form-grid">
-          <div class="field"><label for="name">サーバー名</label><input id="name" placeholder="my-server" autocomplete="off" required></div>
+          <div class="field">
+            <label for="name">サーバー名</label>
+            <input id="name" placeholder="my-server" autocomplete="off" maxlength="32" pattern="[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?" title="1〜32文字の英小文字・数字・ハイフンを使用できます。ハイフンは先頭・末尾には使えません。" required>
+            <p class="small-note">1〜32文字。英小文字・数字・ハイフンのみ使用できます。大文字は自動で小文字、空白はハイフンに変換します。</p>
+          </div>
           <div class="field">
             <label>実行環境</label>
             <div class="custom-select" data-custom-select>
@@ -38,4 +42,21 @@
     </div>
   </div>
 </section>
+{% endblock %}
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('name');
+  if (!input) return;
+  const normalize = () => {
+    input.value = input.value
+      .toLowerCase()
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '');
+  };
+  input.addEventListener('input', normalize);
+  input.addEventListener('blur', normalize);
+});
+</script>
 {% endblock %}
