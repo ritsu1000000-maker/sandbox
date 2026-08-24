@@ -1,20 +1,19 @@
-<!doctype html>
-<html lang="ja">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Rental Server Login</title>
-  <style>
-    *{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:#0b1020;color:#eef2ff;min-height:100vh;display:grid;place-items:center}.card{width:min(420px,92vw);background:#121a31;border:1px solid #263455;border-radius:22px;padding:28px;box-shadow:0 30px 70px #0008}h1{margin:0 0 8px;font-size:28px}p{color:#9fb0d0}input,button{width:100%;padding:14px;border-radius:12px;font-size:15px}input{background:#0b1226;border:1px solid #2a3b61;color:white;margin:10px 0 14px}button{border:0;background:#6d7cff;color:white;font-weight:700;cursor:pointer}.error{background:#4b1f2b;color:#ffb8c6;padding:10px;border-radius:10px}
-  </style>
-</head>
-<body>
-  <form class="card" method="post" action="/login">
-    <h1>Rental Server</h1>
-    <p>管理者パスワードでログイン</p>
-    {% if error %}<div class="error">{{ error }}</div>{% endif %}
-    <input name="password" type="password" placeholder="Admin password" autofocus required>
-    <button type="submit">ログイン</button>
-  </form>
-</body>
-</html>
+{% extends "base.html" %}
+{% block title %}ログイン｜Rental Server{% endblock %}
+{% block content %}
+<section class="auth-section">
+  <div class="auth-card">
+    <span class="page-label">CUSTOMER LOGIN</span>
+    <h1>ログイン</h1>
+    <p>契約中のサーバーと請求情報を管理します。</p>
+    {% if error %}<div class="form-alert">{{ error }}</div>{% endif %}
+    <form method="post" class="auth-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>メールアドレス<input type="email" name="email" value="{{ email }}" autocomplete="email" required></label>
+      <label>パスワード<input type="password" name="password" autocomplete="current-password" required></label>
+      <button class="button button-primary auth-submit" type="submit">ログイン</button>
+    </form>
+    <p class="auth-switch">アカウントがありませんか？ <a href="/signup">新規登録</a></p>
+  </div>
+</section>
+{% endblock %}
