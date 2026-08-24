@@ -19,6 +19,13 @@ LABEL_KEY = "rental.server.instance"
 # ストレージドライバ依存になるため、storage_gb は契約プラン情報として管理します。
 # CPU/RAMはDockerコンテナへ実際の制限として適用されます。
 PLANS = {
+    "free": {
+        "display_name": "500MB",
+        "storage_gb": 0.5,
+        "price_yen": 0,
+        "mem_limit": "128m",
+        "nano_cpus": 100_000_000,
+    },
     "small": {
         "display_name": "1GB",
         "storage_gb": 1,
@@ -99,6 +106,13 @@ def managed_containers(all_states=True):
     )
 
 
+def _number(value, fallback=None):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
 def serialize(container):
     container.reload()
     ports = container.attrs.get("NetworkSettings", {}).get("Ports", {}) or {}
@@ -112,13 +126,16 @@ def serialize(container):
     plan = PLANS.get(plan_id, {})
     storage = container.labels.get("rental.server.storage_gb")
     price = container.labels.get("rental.server.price_yen")
+    storage_value = _number(storage, plan.get("storage_gb"))
+    if isinstance(storage_value, float) and storage_value.is_integer():
+        storage_value = int(storage_value)
 
     return {
         "name": container.labels.get("rental.server.name", container.name),
         "template": container.labels.get("rental.server.template", "unknown"),
         "plan": plan_id,
         "plan_name": plan.get("display_name", plan_id),
-        "storage_gb": int(storage) if storage and storage.isdigit() else plan.get("storage_gb"),
+        "storage_gb": storage_value,
         "price_yen": int(price) if price and price.isdigit() else plan.get("price_yen"),
         "status": container.status,
         "host_port": int(published) if published else None,
@@ -170,7 +187,7 @@ def create_instance():
     data = request.get_json(silent=True) or {}
     name = str(data.get("name", "")).strip().lower()
     template_name = str(data.get("template", "python-web"))
-    plan_name = str(data.get("plan", "small"))
+    plan_name = str(data.get("plan", "free"))
 
     if not validate_name(name):
         return jsonify({"error": "name must be 3-32 chars: a-z, 0-9, hyphen"}), 400
