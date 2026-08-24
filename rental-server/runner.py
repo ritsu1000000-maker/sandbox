@@ -1,3 +1,4 @@
+import hashlib
 import hmac
 import os
 import re
@@ -15,9 +16,6 @@ MAX_INSTANCES = int(os.environ.get("MAX_INSTANCES", "10"))
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$")
 LABEL_KEY = "rental.server.instance"
 
-# Windows Docker Desktopではディスク容量の厳密なクォータは
-# ストレージドライバ依存になるため、storage_gb は契約プラン情報として管理します。
-# CPU/RAMはDockerコンテナへ実際の制限として適用されます。
 PLANS = {
     "free": {
         "display_name": "500MB",
@@ -87,7 +85,6 @@ def auth_required(fn):
         if not hmac.compare_digest(value, expected):
             return jsonify({"error": "unauthorized"}), 401
         return fn(*args, **kwargs)
-
     return wrapper
 
 
@@ -99,18 +96,27 @@ def validate_name(name: str) -> bool:
     return bool(NAME_RE.fullmatch(name or ""))
 
 
+def key_hash(value: str) -> str:
+    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
 def managed_containers(all_states=True):
-    return client.containers.list(
-        all=all_states,
-        filters={"label": f"{LABEL_KEY}=true"},
-    )
+    return client.containers.list(all=all_states, filters={"label": f"{LABEL_KEY}=true"})
 
 
-def _number(value, fallback=None):
-    try:
-        return float(value)
-    except (TypeError, ValueError):
-        return fallback
+def get_managed_container(name: str):
+    container = client.containers.get(container_name(name))
+    if container.labels.get(LABEL_KEY) != "true":
+        raise PermissionError("not a managed instance")
+    return container
+
+
+def verify_instance_key(container) -> bool:
+    supplied = request.headers.get("X-Instance-Key", "").strip()
+    expected = container.labels.get("rental.server.manage_sha256", "")
+    if not supplied or not expected:
+        return False
+    return hmac.compare_digest(key_hash(supplied), expected)
 
 
 def serialize(container):
@@ -126,9 +132,18 @@ def serialize(container):
     plan = PLANS.get(plan_id, {})
     storage = container.labels.get("rental.server.storage_gb")
     price = container.labels.get("rental.server.price_yen")
-    storage_value = _number(storage, plan.get("storage_gb"))
+
+    try:
+        storage_value = float(storage) if storage is not None else plan.get("storage_gb")
+    except ValueError:
+        storage_value = plan.get("storage_gb")
     if isinstance(storage_value, float) and storage_value.is_integer():
         storage_value = int(storage_value)
+
+    try:
+        price_value = int(price) if price is not None else plan.get("price_yen")
+    except ValueError:
+        price_value = plan.get("price_yen")
 
     return {
         "name": container.labels.get("rental.server.name", container.name),
@@ -136,7 +151,7 @@ def serialize(container):
         "plan": plan_id,
         "plan_name": plan.get("display_name", plan_id),
         "storage_gb": storage_value,
-        "price_yen": int(price) if price and price.isdigit() else plan.get("price_yen"),
+        "price_yen": price_value,
         "status": container.status,
         "host_port": int(published) if published else None,
         "container_id": container.short_id,
@@ -173,10 +188,27 @@ def list_plans():
 
 @app.get("/instances")
 @auth_required
-def list_instances():
+def list_instances_internal():
     try:
-        items = [serialize(c) for c in managed_containers()]
-        return jsonify({"instances": items})
+        return jsonify({"instances": [serialize(c) for c in managed_containers()]})
+    except DockerException as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.get("/instances/<name>")
+@auth_required
+def get_instance(name: str):
+    if not validate_name(name):
+        return jsonify({"error": "invalid name"}), 400
+    try:
+        container = get_managed_container(name)
+        if not verify_instance_key(container):
+            return jsonify({"error": "invalid management key"}), 403
+        return jsonify({"instance": serialize(container)})
+    except NotFound:
+        return jsonify({"error": "instance not found"}), 404
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
     except DockerException as exc:
         return jsonify({"error": str(exc)}), 500
 
@@ -188,6 +220,7 @@ def create_instance():
     name = str(data.get("name", "")).strip().lower()
     template_name = str(data.get("template", "python-web"))
     plan_name = str(data.get("plan", "free"))
+    manage_key = str(data.get("manage_key", ""))
 
     if not validate_name(name):
         return jsonify({"error": "name must be 3-32 chars: a-z, 0-9, hyphen"}), 400
@@ -195,6 +228,8 @@ def create_instance():
         return jsonify({"error": "unknown template"}), 400
     if plan_name not in PLANS:
         return jsonify({"error": "unknown plan"}), 400
+    if len(manage_key) < 24:
+        return jsonify({"error": "invalid management key"}), 400
 
     try:
         if len(managed_containers()) >= MAX_INSTANCES:
@@ -235,6 +270,7 @@ def create_instance():
                 "rental.server.plan": plan_name,
                 "rental.server.storage_gb": str(plan["storage_gb"]),
                 "rental.server.price_yen": str(plan["price_yen"]),
+                "rental.server.manage_sha256": key_hash(manage_key),
             },
         )
         return jsonify({"instance": serialize(container)}), 201
@@ -251,9 +287,9 @@ def instance_action(name: str, action: str):
         return jsonify({"error": "unsupported action"}), 400
 
     try:
-        container = client.containers.get(container_name(name))
-        if container.labels.get(LABEL_KEY) != "true":
-            return jsonify({"error": "not a managed instance"}), 403
+        container = get_managed_container(name)
+        if not verify_instance_key(container):
+            return jsonify({"error": "invalid management key"}), 403
         if action == "start":
             container.start()
         elif action == "stop":
@@ -263,6 +299,8 @@ def instance_action(name: str, action: str):
         return jsonify({"instance": serialize(container)})
     except NotFound:
         return jsonify({"error": "instance not found"}), 404
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
     except DockerException as exc:
         return jsonify({"error": str(exc)}), 500
 
@@ -273,13 +311,15 @@ def delete_instance(name: str):
     if not validate_name(name):
         return jsonify({"error": "invalid name"}), 400
     try:
-        container = client.containers.get(container_name(name))
-        if container.labels.get(LABEL_KEY) != "true":
-            return jsonify({"error": "not a managed instance"}), 403
+        container = get_managed_container(name)
+        if not verify_instance_key(container):
+            return jsonify({"error": "invalid management key"}), 403
         container.remove(force=True)
         return jsonify({"ok": True})
     except NotFound:
         return jsonify({"error": "instance not found"}), 404
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
     except DockerException as exc:
         return jsonify({"error": str(exc)}), 500
 
@@ -290,13 +330,15 @@ def logs(name: str):
     if not validate_name(name):
         return jsonify({"error": "invalid name"}), 400
     try:
-        container = client.containers.get(container_name(name))
-        if container.labels.get(LABEL_KEY) != "true":
-            return jsonify({"error": "not a managed instance"}), 403
+        container = get_managed_container(name)
+        if not verify_instance_key(container):
+            return jsonify({"error": "invalid management key"}), 403
         text = container.logs(tail=200, timestamps=True).decode("utf-8", errors="replace")
         return jsonify({"logs": text})
     except NotFound:
         return jsonify({"error": "instance not found"}), 404
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
     except DockerException as exc:
         return jsonify({"error": str(exc)}), 500
 
