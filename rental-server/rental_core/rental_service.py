@@ -26,7 +26,6 @@ class RentalService:
         return name
 
     def _resource_name(self, user_id: int, display_name: str) -> str:
-        # Provider names are global. Keep the user's friendly name separate.
         suffix = secrets.token_hex(3)
         prefix = f"u{user_id}-"
         max_slug = 32 - len(prefix) - len(suffix) - 1
@@ -35,6 +34,36 @@ class RentalService:
 
     def _renewal(self) -> str:
         return (datetime.now(timezone.utc) + timedelta(days=self.settings.lease_days)).isoformat(timespec="seconds")
+
+    @staticmethod
+    def _capacity_error(exc: Exception) -> bool:
+        text = str(exc).lower()
+        return "limited to 25 services" in text or "service limit" in text or "capacity" in text and "render" in text
+
+    def _provision(self, user_id: int, lease: dict) -> dict:
+        self.database.update_lease(lease["id"], status="provisioning")
+        try:
+            result = self.manager.create({
+                "name": lease["resource_name"],
+                "plan": lease["plan_id"],
+                "template": lease["template"],
+            })
+            instance = result.get("instance", {})
+            self.database.update_lease(
+                lease["id"],
+                status="active",
+                public_url=instance.get("url"),
+            )
+        except ServiceError as exc:
+            if self._capacity_error(exc):
+                self.database.update_lease(lease["id"], status="capacity_waiting")
+                return self.serialize_contract(self.require_contract(user_id, lease["id"]))
+            self.database.update_lease(lease["id"], status="provision_failed")
+            raise
+        except Exception:
+            self.database.update_lease(lease["id"], status="provision_failed")
+            raise
+        return self.serialize_contract(self.require_contract(user_id, lease["id"]))
 
     def create_contract(self, user_id: int, data: dict) -> dict:
         display_name = self.normalize_name(data.get("name", ""))
@@ -67,20 +96,7 @@ class RentalService:
 
         if paid:
             return self.serialize_contract(lease)
-
-        try:
-            result = self.manager.create({"name": resource_name, "plan": plan_id, "template": template})
-            instance = result.get("instance", {})
-            self.database.update_lease(
-                lease["id"],
-                status="active",
-                public_url=instance.get("url"),
-            )
-        except Exception:
-            self.database.update_lease(lease["id"], status="provision_failed")
-            raise
-
-        return self.serialize_contract(self.database.get_lease(user_id, lease["id"]) or lease)
+        return self._provision(user_id, lease)
 
     def activate_paid_contract(self, user_id: int, lease_id: int) -> dict:
         """Internal hook for a future verified payment webhook."""
@@ -89,15 +105,15 @@ class RentalService:
             raise ServiceError("この契約は支払い待ちではありません。", 409)
         if not self.settings.allow_paid_render_plans and self.manager.provider_name == "render":
             raise ServiceError("Render有料プランの発行が無効です。", 409)
-        self.database.update_lease(lease_id, status="provisioning")
-        result = self.manager.create({
-            "name": lease["resource_name"],
-            "plan": lease["plan_id"],
-            "template": lease["template"],
-        })
-        instance = result.get("instance", {})
-        self.database.update_lease(lease_id, status="active", public_url=instance.get("url"))
-        return self.serialize_contract(self.require_contract(user_id, lease_id))
+        return self._provision(user_id, lease)
+
+    def retry_provision(self, user_id: int, lease_id: int) -> dict:
+        lease = self.require_contract(user_id, lease_id)
+        if lease["status"] not in {"capacity_waiting", "provision_failed"}:
+            raise ServiceError("この契約は再発行待ちではありません。", 409)
+        if int(PLANS.get(lease["plan_id"], {}).get("price_yen", 0)) > 0:
+            raise ServiceError("有料契約は決済確認後に発行してください。", 409)
+        return self._provision(user_id, lease)
 
     def list_contracts(self, user_id: int) -> list[dict]:
         return [self.serialize_contract(row) for row in self.database.list_leases(user_id)]
