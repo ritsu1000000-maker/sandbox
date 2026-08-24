@@ -152,11 +152,6 @@ def delete_instance(name):
     return jsonify(manager.delete(name, instance_key()))
 
 
-@app.get("/api/instances/<name>/logs")
-def instance_logs(name):
-    return jsonify(manager.logs(name, instance_key()))
-
-
 @app.get("/s/<name>")
 def open_instance(name):
     url = manager.public_url(name)
