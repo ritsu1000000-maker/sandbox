@@ -1,0 +1,35 @@
+services:
+  control:
+    build: .
+    command: gunicorn -w 2 -b 0.0.0.0:8080 app:app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      ADMIN_PASSWORD: "${ADMIN_PASSWORD:-change-me-now}"
+      SESSION_SECRET: "${SESSION_SECRET:-replace-this-session-secret}"
+      RUNNER_URL: "http://runner:9000"
+      RUNNER_TOKEN: "${RUNNER_TOKEN:-replace-this-runner-token}"
+    depends_on:
+      - runner
+    read_only: true
+    tmpfs:
+      - /tmp:size=32m,noexec,nosuid
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  runner:
+    build: .
+    command: gunicorn -w 1 -b 0.0.0.0:9000 runner:app
+    restart: unless-stopped
+    environment:
+      RUNNER_TOKEN: "${RUNNER_TOKEN:-replace-this-runner-token}"
+      MAX_INSTANCES: "${MAX_INSTANCES:-10}"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
