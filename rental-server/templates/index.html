@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Rental Server｜シンプルなサーバーホスティング{% endblock %}
+{% block head %}
+<style>
+.purpose-card{display:flex;flex-direction:column;min-height:230px;transition:.18s ease}.purpose-card:hover{border-color:#a8c6e3;transform:translateY(-2px);box-shadow:0 10px 26px rgba(31,65,102,.07)}.purpose-card .route-chip{font-family:inherit;font-weight:800}.purpose-card h3{font-size:20px;margin-top:14px}.purpose-card p{line-height:1.8}.card-link{margin-top:auto;padding-top:20px;border-top:1px solid #edf1f5;color:#1768c4;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:space-between}.card-link span{color:#8090a3;font:700 11px ui-monospace,SFMono-Regular,Consolas,monospace}
+</style>
+{% endblock %}
 {% block notice %}
 <div class="notice-bar"><div class="container notice-inner"><span class="notice-label">お知らせ</span><span>500MBの無料プランを提供しています。まずは小さく試せます。</span></div></div>
 {% endblock %}
@@ -41,9 +46,9 @@
   <div class="container">
     <header class="section-heading"><span class="label">PURPOSE</span><h2>目的から選ぶ</h2><p>今やりたいことに合わせて、必要なページへ進めます。</p></header>
     <div class="info-strip">
-      <a class="content-card" href="/plans"><span class="route-chip">料金を決める</span><h3>自分に合うプランを比較する</h3><p>500MB無料から100GBまで、容量・RAM・CPU・月額を見比べて、使いたいプランを決めます。</p><div class="card-link">料金プランを見る <span>/plans →</span></div></a>
-      <a class="content-card" href="/create"><span class="route-chip">新しく作る</span><h3>新しいサーバーを作成する</h3><p>サーバー名と実行環境を指定し、選んだプランで新しいサーバーを作成します。</p><div class="card-link">作成画面へ <span>/create →</span></div></a>
-      <a class="content-card" href="/servers"><span class="route-chip">運用・管理する</span><h3>作成したサーバーを操作する</h3><p>稼働状態の確認、起動・停止・再起動、ログ確認、削除などの運用を行います。</p><div class="card-link">マイサーバーへ <span>/servers →</span></div></a>
+      <a class="content-card purpose-card" href="/plans"><span class="route-chip">料金を決める</span><h3>自分に合うプランを比較する</h3><p>500MB無料から100GBまで、容量・RAM・CPU・月額を見比べて、使いたいプランを決めます。</p><div class="card-link">料金プランを見る <span>/plans →</span></div></a>
+      <a class="content-card purpose-card" href="/create"><span class="route-chip">新しく作る</span><h3>新しいサーバーを作成する</h3><p>サーバー名と実行環境を指定し、選んだプランで新しいサーバーを作成します。</p><div class="card-link">作成画面へ <span>/create →</span></div></a>
+      <a class="content-card purpose-card" href="/servers"><span class="route-chip">運用・管理する</span><h3>作成したサーバーを操作する</h3><p>稼働状態の確認、起動・停止・再起動、ログ確認、削除などの運用を行います。</p><div class="card-link">マイサーバーへ <span>/servers →</span></div></a>
     </div>
   </div>
 </section>
