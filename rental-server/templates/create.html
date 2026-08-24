@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}サーバー作成｜Rental Server{% endblock %}
+{% block content %}
+<section class="page-hero"><div class="container"><span class="page-label">CREATE SERVER</span><h1>サーバーを作成</h1><p>プラン、サーバー名、実行環境を選んで作成します。料金比較は <a href="/plans" style="color:#1768c4;font-weight:800">/plans</a> から確認できます。</p></div></section>
+<section class="section">
+  <div class="container">
+    <header class="section-heading"><span class="label">STEP 01</span><h2>プランを選択</h2><p>作成するサーバーの容量と性能を選択してください。</p></header>
+    <div class="plan-chooser">
+      <button type="button" class="plan-choice" data-plan-choice="free"><strong>500MB</strong><span>無料 · RAM 128MB · CPU 0.1</span></button>
+      <button type="button" class="plan-choice" data-plan-choice="small"><strong>1GB</strong><span>¥500/月 · RAM 256MB</span></button>
+      <button type="button" class="plan-choice" data-plan-choice="medium"><strong>10GB</strong><span>¥1,500/月 · RAM 512MB</span></button>
+      <button type="button" class="plan-choice" data-plan-choice="large"><strong>50GB</strong><span>¥2,000/月 · RAM 1GB</span></button>
+      <button type="button" class="plan-choice" data-plan-choice="xlarge"><strong>100GB</strong><span>¥4,000/月 · RAM 2GB</span></button>
+    </div>
+    <header class="section-heading"><span class="label">STEP 02</span><h2>基本設定</h2><p>サーバー名と実行環境を指定します。</p></header>
+    <div class="application-box">
+      <form id="createForm">
+        <input type="hidden" id="plan" value="free">
+        <div class="form-grid">
+          <div class="field"><label for="name">サーバー名</label><input id="name" placeholder="my-server" autocomplete="off" required></div>
+          <div class="field">
+            <label>実行環境</label>
+            <div class="custom-select" data-custom-select>
+              <input type="hidden" id="template" value="python-web">
+              <button class="select-trigger" type="button" aria-expanded="false"><span class="select-icon" data-select-icon>PY</span><span class="select-copy"><strong data-select-label>Python Web</strong><span data-select-desc>Flask / Python向け</span></span><svg class="select-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 7.5l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <div class="select-menu">
+                <button type="button" class="select-option" data-value="python-web"><span class="select-icon">PY</span><span class="select-copy"><strong>Python Web</strong><span>Flask / Python向け</span></span><span class="checkmark">✓</span></button>
+                <button type="button" class="select-option" data-value="node-web"><span class="select-icon">JS</span><span class="select-copy"><strong>Node.js Web</strong><span>Node.jsアプリ向け</span></span><span class="checkmark">✓</span></button>
+                <button type="button" class="select-option" data-value="nginx"><span class="select-icon">NX</span><span class="select-copy"><strong>Nginx</strong><span>静的サイト・配信向け</span></span><span class="checkmark">✓</span></button>
+              </div>
+            </div>
+          </div>
+          <button class="button button-primary create-btn" type="submit">この内容で作成</button>
+        </div>
+        <p class="small-note" id="selectedPlanText"></p>
+        <div id="message" class="msg"></div>
+      </form>
+    </div>
+  </div>
+</section>
+{% endblock %}
