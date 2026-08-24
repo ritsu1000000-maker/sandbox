@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Rental Server Dashboard</title>
   <style>
-    *{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:#090e1b;color:#eef2ff}.wrap{max-width:1180px;margin:auto;padding:28px}.top{display:flex;justify-content:space-between;align-items:center;gap:16px}.title h1{margin:0;font-size:30px}.title p{margin:7px 0;color:#91a2c6}.btn,button,select,input{font:inherit}.btn,button{border:0;border-radius:11px;padding:10px 14px;color:#fff;background:#6574ff;cursor:pointer;font-weight:700}.ghost{background:#202a44}.danger{background:#9c334d}.panel{margin-top:24px;background:#10172a;border:1px solid #23304d;border-radius:18px;padding:18px}.section-title{margin:0 0 10px;font-size:15px;color:#cbd6ef}.create{display:grid;grid-template-columns:2fr 1fr auto;gap:10px}.create input,.create select{background:#0b1222;color:#fff;border:1px solid #293858;border-radius:11px;padding:11px}.plan-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:14px 0}.plan-card{position:relative;display:block;background:#0b1222;border:1px solid #293858;border-radius:16px;padding:17px;cursor:pointer;transition:.15s ease}.plan-card:hover{border-color:#6676ff;transform:translateY(-1px)}.plan-card input{position:absolute;opacity:0;pointer-events:none}.plan-card:has(input:checked){border-color:#7b88ff;box-shadow:0 0 0 2px rgba(101,116,255,.18);background:#131c35}.plan-name{display:flex;align-items:center;justify-content:space-between;font-weight:900;font-size:22px}.check{width:19px;height:19px;border-radius:50%;border:2px solid #506080;display:grid;place-items:center}.plan-card:has(input:checked) .check{border-color:#7b88ff;background:#7b88ff}.plan-card:has(input:checked) .check:after{content:'✓';font-size:12px}.price{margin-top:10px;font-size:25px;font-weight:900}.price small{font-size:12px;color:#91a2c6;font-weight:600}.plan-spec{margin-top:10px;color:#a9b9d8;font-size:13px;line-height:1.7}.plan-note{margin-top:4px;color:#7184aa;font-size:11px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:18px}.card{background:#121b31;border:1px solid #263655;border-radius:16px;padding:16px}.line{display:flex;justify-content:space-between;align-items:center;gap:10px}.name{font-size:19px;font-weight:800}.tag{font-size:12px;background:#243252;padding:5px 8px;border-radius:999px}.plan-badge{display:inline-block;margin-top:7px;font-size:12px;font-weight:700;color:#cbd4ff;background:#232f5c;padding:5px 8px;border-radius:999px}.meta{color:#9aabc9;font-size:13px;line-height:1.8;margin:10px 0}.actions{display:flex;gap:7px;flex-wrap:wrap}.actions button{padding:8px 10px;font-size:13px}.logs{white-space:pre-wrap;background:#060a13;border-radius:12px;padding:12px;max-height:240px;overflow:auto;color:#b9c8e7;font-family:ui-monospace,monospace;font-size:12px;margin-top:12px}.status-running{color:#67e8a5}.status-exited,.status-dead{color:#ff8b9f}.empty{color:#91a2c6;text-align:center;padding:35px}.msg{margin-top:12px;padding:10px 12px;border-radius:10px;display:none}.ok{display:block;background:#123b2b;color:#8ff0bb}.err{display:block;background:#4a1f2b;color:#ffb0c0}@media(max-width:900px){.plan-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:720px){.create{grid-template-columns:1fr}.plan-grid{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:#090e1b;color:#eef2ff}.wrap{max-width:1260px;margin:auto;padding:28px}.top{display:flex;justify-content:space-between;align-items:center;gap:16px}.title h1{margin:0;font-size:30px}.title p{margin:7px 0;color:#91a2c6}.btn,button,select,input{font:inherit}.btn,button{border:0;border-radius:11px;padding:10px 14px;color:#fff;background:#6574ff;cursor:pointer;font-weight:700}.ghost{background:#202a44}.danger{background:#9c334d}.panel{margin-top:24px;background:#10172a;border:1px solid #23304d;border-radius:18px;padding:18px}.section-title{margin:0 0 10px;font-size:15px;color:#cbd6ef}.create{display:grid;grid-template-columns:2fr 1fr auto;gap:10px}.create input,.create select{background:#0b1222;color:#fff;border:1px solid #293858;border-radius:11px;padding:11px}.plan-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:14px 0}.plan-card{position:relative;display:block;background:#0b1222;border:1px solid #293858;border-radius:16px;padding:17px;cursor:pointer;transition:.15s ease}.plan-card:hover{border-color:#6676ff;transform:translateY(-1px)}.plan-card input{position:absolute;opacity:0;pointer-events:none}.plan-card:has(input:checked){border-color:#7b88ff;box-shadow:0 0 0 2px rgba(101,116,255,.18);background:#131c35}.plan-card.free{border-color:#2f6f56}.plan-card.free:has(input:checked){border-color:#67e8a5;box-shadow:0 0 0 2px rgba(103,232,165,.16);background:#10261f}.plan-name{display:flex;align-items:center;justify-content:space-between;font-weight:900;font-size:22px}.free-label{display:inline-block;margin-top:8px;background:#173e2e;color:#8ff0bb;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:800}.check{width:19px;height:19px;border-radius:50%;border:2px solid #506080;display:grid;place-items:center}.plan-card:has(input:checked) .check{border-color:#7b88ff;background:#7b88ff}.plan-card.free:has(input:checked) .check{border-color:#67e8a5;background:#67e8a5;color:#072116}.plan-card:has(input:checked) .check:after{content:'✓';font-size:12px}.price{margin-top:10px;font-size:25px;font-weight:900}.price small{font-size:12px;color:#91a2c6;font-weight:600}.plan-spec{margin-top:10px;color:#a9b9d8;font-size:13px;line-height:1.7}.plan-note{margin-top:4px;color:#7184aa;font-size:11px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-top:18px}.card{background:#121b31;border:1px solid #263655;border-radius:16px;padding:16px}.line{display:flex;justify-content:space-between;align-items:center;gap:10px}.name{font-size:19px;font-weight:800}.tag{font-size:12px;background:#243252;padding:5px 8px;border-radius:999px}.plan-badge{display:inline-block;margin-top:7px;font-size:12px;font-weight:700;color:#cbd4ff;background:#232f5c;padding:5px 8px;border-radius:999px}.meta{color:#9aabc9;font-size:13px;line-height:1.8;margin:10px 0}.actions{display:flex;gap:7px;flex-wrap:wrap}.actions button{padding:8px 10px;font-size:13px}.logs{white-space:pre-wrap;background:#060a13;border-radius:12px;padding:12px;max-height:240px;overflow:auto;color:#b9c8e7;font-family:ui-monospace,monospace;font-size:12px;margin-top:12px}.status-running{color:#67e8a5}.status-exited,.status-dead{color:#ff8b9f}.empty{color:#91a2c6;text-align:center;padding:35px}.msg{margin-top:12px;padding:10px 12px;border-radius:10px;display:none}.ok{display:block;background:#123b2b;color:#8ff0bb}.err{display:block;background:#4a1f2b;color:#ffb0c0}@media(max-width:1100px){.plan-grid{grid-template-columns:repeat(3,1fr)}}@media(max-width:800px){.plan-grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:720px){.create{grid-template-columns:1fr}.plan-grid{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
   </style>
 </head>
 <body>
@@ -25,8 +25,16 @@
 
     <h2 class="section-title" style="margin-top:20px">容量プランを選択</h2>
     <div class="plan-grid">
+      <label class="plan-card free">
+        <input type="radio" name="plan" value="free" checked>
+        <span class="plan-name">500MB <span class="check"></span></span>
+        <span class="free-label">FREE</span>
+        <div class="price">¥0 <small>/ 月</small></div>
+        <div class="plan-spec">RAM 128MB<br>CPU 0.1</div>
+        <div class="plan-note">お試し・超軽量サイト向け</div>
+      </label>
       <label class="plan-card">
-        <input type="radio" name="plan" value="small" checked>
+        <input type="radio" name="plan" value="small">
         <span class="plan-name">1GB <span class="check"></span></span>
         <div class="price">¥500 <small>/ 月</small></div>
         <div class="plan-spec">RAM 256MB<br>CPU 0.25</div>
@@ -63,12 +71,14 @@
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 const PLAN_META={
+  free:{name:'500MB',storage:'500MB',price:0,ram:'128MB',cpu:'0.1'},
   small:{name:'1GB',storage:'1GB',price:500,ram:'256MB',cpu:'0.25'},
   medium:{name:'10GB',storage:'10GB',price:1500,ram:'512MB',cpu:'0.5'},
   large:{name:'50GB',storage:'50GB',price:2000,ram:'1GB',cpu:'1.0'},
   xlarge:{name:'100GB',storage:'100GB',price:4000,ram:'2GB',cpu:'2.0'}
 };
 function yen(v){return `¥${Number(v||0).toLocaleString('ja-JP')}`}
+function storageText(i,plan){if(i.plan_name)return i.plan_name;if(Number(i.storage_gb)===0.5)return '500MB';if(i.storage_gb)return `${i.storage_gb}GB`;return plan.storage}
 function message(text,ok=false){const el=$('#message');el.textContent=text;el.className='msg '+(ok?'ok':'err');setTimeout(()=>el.className='msg',3500)}
 async function api(path,options={}){const r=await fetch(path,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options});const data=await r.json().catch(()=>({error:'invalid response'}));if(!r.ok)throw new Error(data.error||`HTTP ${r.status}`);return data}
 async function load(){
@@ -77,12 +87,11 @@ async function load(){
     if(!items.length){root.innerHTML='<div class="empty">まだインスタンスがありません</div>';return}
     root.innerHTML=items.map(i=>{
       const url=i.host_port?`${location.protocol}//${location.hostname}:${i.host_port}`:null;
-      const plan=PLAN_META[i.plan]||{name:i.plan,storage:i.storage_gb?`${i.storage_gb}GB`:'-',price:i.price_yen||0,ram:'-',cpu:'-'};
-      const storage=i.storage_gb?`${i.storage_gb}GB`:plan.storage;
-      const price=i.price_yen??plan.price;
+      const plan=PLAN_META[i.plan]||{name:i.plan,storage:'-',price:i.price_yen||0,ram:'-',cpu:'-'};
+      const storage=storageText(i,plan);const price=i.price_yen??plan.price;
       return `<article class="card">
         <div class="line"><span class="name">${esc(i.name)}</span><span class="tag status-${esc(i.status)}">${esc(i.status)}</span></div>
-        <span class="plan-badge">${esc(storage)} · ${esc(yen(price))}/月 · RAM ${esc(plan.ram)} · CPU ${esc(plan.cpu)}</span>
+        <span class="plan-badge">${esc(storage)} · ${price===0?'無料':`${esc(yen(price))}/月`} · RAM ${esc(plan.ram)} · CPU ${esc(plan.cpu)}</span>
         <div class="meta">Template: ${esc(i.template)}<br>Container: ${esc(i.container_id)}<br>${url?`URL: <a href="${esc(url)}" target="_blank" style="color:#8fa8ff">${esc(url)}</a>`:'URL: -'}</div>
         <div class="actions">
           <button onclick="act('${esc(i.name)}','start')">Start</button>
@@ -97,8 +106,8 @@ async function load(){
   }catch(e){message(e.message)}
 }
 async function createInstance(){
-  const name=$('#name').value.trim().toLowerCase();const plan=document.querySelector('input[name="plan"]:checked')?.value||'small';
-  try{await api('/api/instances',{method:'POST',body:JSON.stringify({name,template:$('#template').value,plan})});$('#name').value='';const p=PLAN_META[plan];message(`${p.name}・${yen(p.price)}/月プランで作成しました`,true);await load()}catch(e){message(e.message)}
+  const name=$('#name').value.trim().toLowerCase();const plan=document.querySelector('input[name="plan"]:checked')?.value||'free';
+  try{await api('/api/instances',{method:'POST',body:JSON.stringify({name,template:$('#template').value,plan})});$('#name').value='';const p=PLAN_META[plan];message(`${p.name}・${p.price===0?'無料':`${yen(p.price)}/月`}プランで作成しました`,true);await load()}catch(e){message(e.message)}
 }
 async function act(name,action){try{await api(`/api/instances/${encodeURIComponent(name)}/${action}`,{method:'POST'});message(`${name}: ${action}`,true);await load()}catch(e){message(e.message)}}
 async function removeInstance(name){if(!confirm(`${name} を削除しますか？`))return;try{await api(`/api/instances/${encodeURIComponent(name)}`,{method:'DELETE'});message('削除しました',true);await load()}catch(e){message(e.message)}}
