@@ -4,6 +4,12 @@ logs/
 __pycache__/
 *.pyc
 
+# Customer/account database
+/data/
+*.db
+*.db-shm
+*.db-wal
+
 # Local configuration / secrets
 server.env
 .env
