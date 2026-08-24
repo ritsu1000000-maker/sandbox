@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ server_name }}｜サーバー管理｜Rental Server{% endblock %}
+{% block content %}
+<section class="page-hero">
+  <div class="container">
+    <span class="page-label">SERVER CONTROL</span>
+    <h1>{{ server_name }}</h1>
+    <p>1台のサーバーに必要な情報と操作をまとめた管理ページです。</p>
+  </div>
+</section>
+<section class="section">
+  <div class="container">
+    <div id="serverDetail" class="detail-shell" data-server-name="{{ server_name|e }}">
+      <div class="detail-loading">サーバー情報を読み込んでいます…</div>
+    </div>
+  </div>
+</section>
+<section class="section section-alt">
+  <div class="container">
+    <div class="info-strip">
+      <article class="content-card"><h3>サーバー一覧へ戻る</h3><p>ほかの作成済みサーバーを確認します。</p><p style="margin-top:14px"><a class="button button-outline" href="/servers">マイサーバーへ</a></p></article>
+      <article class="content-card"><h3>新しいサーバーを追加</h3><p>別の用途向けに新しい環境を作成できます。</p><p style="margin-top:14px"><a class="button button-outline" href="/create">サーバー作成へ</a></p></article>
+      <article class="content-card"><h3>料金・性能を比較</h3><p>容量、RAM、CPU、料金を一覧で確認できます。</p><p style="margin-top:14px"><a class="button button-outline" href="/plans">料金プランへ</a></p></article>
+    </div>
+  </div>
+</section>
+{% endblock %}
