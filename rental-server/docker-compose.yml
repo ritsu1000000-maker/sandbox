@@ -12,10 +12,13 @@ services:
       APP_HOST: 0.0.0.0
       PORT: "8080"
       RUNNER_URL: http://runner:9000
+      DATABASE_URL: sqlite:////app/data/rental.db
     depends_on:
       runner:
         condition: service_healthy
     read_only: true
+    volumes:
+      - rental_data:/app/data
     tmpfs:
       - /tmp:size=32m,noexec,nosuid
     security_opt:
@@ -51,3 +54,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+
+volumes:
+  rental_data:
