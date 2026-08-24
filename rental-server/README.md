@@ -83,7 +83,7 @@ Docker Engine
 
 ### nginx
 
-`nginx:alpine` の標準ページを起動します。
+`nginxinc/nginx-unprivileged:alpine` の標準ページを8080番ポートで起動します。
 
 このMVPでは、管理画面から任意のシェルコマンドやホスト側コマンドを直接入力する機能は付けていません。テンプレートを増やす場合は `runner.py` の `TEMPLATES` に許可するイメージと固定コマンドを追加します。
 
