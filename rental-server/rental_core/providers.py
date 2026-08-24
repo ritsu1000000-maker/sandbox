@@ -29,7 +29,7 @@ class RunnerProvider:
                 method,
                 f"{self.settings.runner_url}{path}",
                 headers=headers,
-                timeout=20,
+                timeout=self.settings.request_timeout_seconds,
                 **kwargs,
             )
         except requests.RequestException as exc:
@@ -100,13 +100,15 @@ class RenderProvider:
                 missing.append("RENDER_API_KEY")
             if not self.settings.render_owner_id:
                 missing.append("RENDER_OWNER_ID")
+            if not self.settings.instance_key_secret:
+                missing.append("INSTANCE_KEY_SECRET")
             raise ServiceError("Render API is not configured", 503, {"missing": missing})
         try:
             response = self.session.request(
                 method,
                 f"{self.api_base}{path}",
                 headers=self._headers(),
-                timeout=30,
+                timeout=self.settings.request_timeout_seconds,
                 **kwargs,
             )
         except requests.RequestException as exc:
@@ -235,12 +237,6 @@ class RenderProvider:
             },
         }
 
-    def _verify(self, name, key):
-        if not validate_name(name):
-            raise ServiceError("invalid server name", 400)
-        if not verify_management_key(name, key, self.key_secret):
-            raise ServiceError("invalid management key", 403)
-
     def create(self, data):
         name = str(data.get("name", "")).strip().lower()
         template = str(data.get("template", "python-web"))
@@ -252,9 +248,13 @@ class RenderProvider:
         if plan_id not in PLANS:
             raise ServiceError("unknown plan", 400)
         if plan_id != "free" and not self.settings.allow_paid_render_plans:
-            raise ServiceError("有料プランは決済確認を実装するまで自動作成できません。", 402)
+            raise ServiceError(
+                "有料プランの自動作成はまだ無効です。決済確認なしでRenderの有料サービスを作成すると運営側に課金されるため、現在は500MB無料プランのみ自動作成できます。",
+                402,
+            )
         if self._find(name, required=False):
             raise ServiceError("instance already exists", 409)
+
         payload = {
             "type": "web_service",
             "name": self._service_name(name, plan_id, template),
@@ -270,10 +270,13 @@ class RenderProvider:
             "serviceDetails": self._template_details(template, RENDER_PLAN_MAP[plan_id]),
         }
         created = self._normalize(self._request("POST", "/services", json=payload))
-        return {"instance": self._serialize(created), "manage_key": management_key(name, self.key_secret)}
+        return {"instance": self._serialize(created), "manage_key": management_key(self.key_secret, name)}
 
     def get(self, name, key):
-        self._verify(name, key)
+        if not validate_name(name):
+            raise ServiceError("invalid name", 400)
+        if not verify_management_key(self.key_secret, name, key):
+            raise ServiceError("invalid management key", 403)
         service = self._find(name)
         service_id = str(service.get("id", ""))
         if service_id:
@@ -281,43 +284,45 @@ class RenderProvider:
         return {"instance": self._serialize(service)}
 
     def action(self, name, action, key):
-        self._verify(name, key)
-        service = self._find(name)
-        service_id = str(service.get("id", ""))
-        endpoint = {"start": "resume", "stop": "suspend", "restart": "restart"}.get(action)
-        if not endpoint:
+        if action not in {"start", "stop", "restart"}:
             raise ServiceError("unsupported action", 400)
-        self._request("POST", f"/services/{quote(service_id, safe='')}/{endpoint}")
-        try:
-            fresh = self._retrieve(service_id)
-            return {"instance": self._serialize(fresh)}
-        except ServiceError:
-            return {"ok": True}
+        if not verify_management_key(self.key_secret, name, key):
+            raise ServiceError("invalid management key", 403)
+        service = self._find(name)
+        service_id_raw = str(service.get("id", ""))
+        service_id = quote(service_id_raw, safe="")
+        endpoint = {"start": "resume", "stop": "suspend", "restart": "restart"}[action]
+        self._request("POST", f"/services/{service_id}/{endpoint}")
+        return {"instance": self._serialize(self._retrieve(service_id_raw))}
 
     def delete(self, name, key):
-        self._verify(name, key)
+        if not verify_management_key(self.key_secret, name, key):
+            raise ServiceError("invalid management key", 403)
         service = self._find(name)
-        service_id = str(service.get("id", ""))
-        self._request("DELETE", f"/services/{quote(service_id, safe='')}")
+        self._request("DELETE", f"/services/{quote(str(service.get('id', '')), safe='')}")
         return {"ok": True}
 
     def logs(self, name, key):
-        self._verify(name, key)
+        if not verify_management_key(self.key_secret, name, key):
+            raise ServiceError("invalid management key", 403)
         service = self._find(name)
         return {
             "logs": (
-                "Render APIモードの簡易ログ表示です。\n"
+                "Render APIモードでは、この画面のログ取得はまだ簡易表示です。\n"
                 f"Service ID: {service.get('id', '-')}\n"
-                "詳細なアプリログはRender DashboardのLogsで確認できます。"
+                "実ログはRender DashboardのLogsから確認できます。"
             )
         }
 
     def public_url(self, name):
-        if not validate_name(name):
-            raise ServiceError("not found", 404)
         service = self._find(name)
         details = service.get("serviceDetails") if isinstance(service.get("serviceDetails"), dict) else {}
-        url = service.get("url") or details.get("url")
-        if not url:
-            raise ServiceError("service URL is not ready yet", 503)
-        return url
+        return service.get("url") or details.get("url")
+
+
+def build_provider(settings):
+    if settings.backend_provider == "render":
+        return RenderProvider(settings)
+    if settings.backend_provider == "runner":
+        return RunnerProvider(settings)
+    raise ServiceError(f"unsupported backend provider: {settings.backend_provider}", 500)
