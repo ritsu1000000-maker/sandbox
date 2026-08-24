@@ -16,8 +16,26 @@ NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,30}[a-z0-9]$")
 LABEL_KEY = "rental.server.instance"
 
 PLANS = {
-    "small": {"mem_limit": "256m", "nano_cpus": 250_000_000},
-    "medium": {"mem_limit": "512m", "nano_cpus": 500_000_000},
+    "small": {
+        "display_name": "Small",
+        "mem_limit": "256m",
+        "nano_cpus": 250_000_000,
+    },
+    "medium": {
+        "display_name": "Medium",
+        "mem_limit": "512m",
+        "nano_cpus": 500_000_000,
+    },
+    "large": {
+        "display_name": "Large",
+        "mem_limit": "1g",
+        "nano_cpus": 1_000_000_000,
+    },
+    "xlarge": {
+        "display_name": "XLarge",
+        "mem_limit": "2g",
+        "nano_cpus": 2_000_000_000,
+    },
 }
 
 TEMPLATES = {
