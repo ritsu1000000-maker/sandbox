@@ -50,10 +50,13 @@ class Settings:
     render_region: str
     render_service_prefix: str
     instance_key_secret: str
+    session_secret: str
+    database_url: str
     allow_paid_render_plans: bool
     create_limit_per_hour: int
     request_timeout_seconds: int
     log_level: str
+    lease_days: int
 
     @classmethod
     def from_env(cls):
@@ -84,10 +87,13 @@ class Settings:
             render_region=os.environ.get("RENDER_TENANT_REGION", "singapore").strip(),
             render_service_prefix=os.environ.get("RENDER_SERVICE_PREFIX", "rental").strip().lower() or "rental",
             instance_key_secret=os.environ.get("INSTANCE_KEY_SECRET", "").strip(),
+            session_secret=os.environ.get("SESSION_SECRET", "").strip(),
+            database_url=os.environ.get("DATABASE_URL", "").strip(),
             allow_paid_render_plans=os.environ.get("ALLOW_PAID_RENDER_PLANS", "false").strip().lower() == "true",
             create_limit_per_hour=_int_env("CREATE_LIMIT_PER_HOUR", 10),
             request_timeout_seconds=_int_env("REQUEST_TIMEOUT_SECONDS", 30),
             log_level=(os.environ.get("LOG_LEVEL", "INFO").strip().upper() or "INFO"),
+            lease_days=_int_env("LEASE_DAYS", 30),
         )
 
     @property
