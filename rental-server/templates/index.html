@@ -96,9 +96,20 @@
     .application-box{background:#fff;border:1px solid #dfe5ec;border-radius:14px;padding:28px;box-shadow:0 6px 20px rgba(37,57,80,.04)}
     .form-grid{display:grid;grid-template-columns:1.6fr 1fr auto;gap:12px;align-items:end}
     .field label{display:block;font-size:12px;font-weight:800;margin-bottom:7px;color:#4d596a}
-    .field input,.field select,.import-row input{width:100%;height:44px;border:1px solid #ccd5df;border-radius:8px;background:#fff;color:#202b3c;padding:0 12px;outline:none}
-    .field input:focus,.field select:focus,.import-row input:focus{border-color:#72a4d7;box-shadow:0 0 0 3px rgba(23,104,196,.08)}
-    .create-btn{height:44px;white-space:nowrap}
+    .field input,.import-row input{width:100%;height:50px;border:1px solid #ccd5df;border-radius:10px;background:#fff;color:#202b3c;padding:0 14px;outline:none;transition:border-color .15s ease,box-shadow .15s ease}
+    .field input:focus,.import-row input:focus{border-color:#72a4d7;box-shadow:0 0 0 3px rgba(23,104,196,.08)}
+    .field select{
+      width:100%;height:50px;border:1px solid #c8d3df;border-radius:10px;color:#24334a;background-color:#fff;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 20 20'%3E%3Cpath d='M5 7.5l5 5 5-5' fill='none' stroke='%235b6b7f' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+      background-repeat:no-repeat;background-position:right 14px center;background-size:16px;padding:0 44px 0 14px;outline:none;
+      appearance:none;-webkit-appearance:none;font-weight:700;cursor:pointer;color-scheme:light;
+      box-shadow:0 1px 2px rgba(16,24,40,.03);transition:border-color .15s ease,box-shadow .15s ease,background-color .15s ease
+    }
+    .field select:hover{border-color:#96b7d9;background-color:#fbfdff}
+    .field select:focus{border-color:#5f9bd3;box-shadow:0 0 0 4px rgba(23,104,196,.09)}
+    .field select option{background:#fff;color:#24334a;font-size:15px;font-weight:600;padding:12px 14px}
+    .field select option:checked{background:#eaf3ff;color:#0f4f9a;font-weight:800}
+    .create-btn{height:50px;white-space:nowrap}
     .small-note{font-size:12px;color:#7b8797;margin:13px 0 0}
     .msg{display:none;margin-top:14px;border-radius:8px;padding:11px 13px;font-size:13px}
     .msg.ok{display:block;color:#126b39;background:#ebf8f0;border:1px solid #cdebd8}
