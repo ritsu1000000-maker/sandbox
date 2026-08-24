@@ -45,9 +45,12 @@ RENDER_PLAN_MAP = {
     "large": "pro",
     "xlarge": "pro_plus",
 }
-
 TEMPLATE_CODE = {"python-web": "py", "node-web": "node", "nginx": "nginx"}
 CODE_TEMPLATE = {value: key for key, value in TEMPLATE_CODE.items()}
+
+
+def validate_name(name: str) -> bool:
+    return bool(NAME_RE.fullmatch(name or ""))
 
 
 def instance_key_from_request() -> str:
@@ -59,7 +62,6 @@ def runner_request(method: str, path: str, instance_key: str | None = None, **kw
     headers["Authorization"] = f"Bearer {RUNNER_TOKEN}"
     if instance_key:
         headers["X-Instance-Key"] = instance_key
-
     try:
         response = requests.request(
             method,
@@ -70,7 +72,6 @@ def runner_request(method: str, path: str, instance_key: str | None = None, **kw
         )
     except requests.RequestException as exc:
         return None, (jsonify({"error": f"runner unavailable: {exc}"}), 502)
-
     try:
         payload = response.json()
     except ValueError:
@@ -84,13 +85,13 @@ def render_config_error():
         missing.append("RENDER_API_KEY")
     if not RENDER_OWNER_ID:
         missing.append("RENDER_OWNER_ID")
-    if missing:
-        return jsonify({
-            "error": "Render API is not configured",
-            "missing": missing,
-            "hint": "Set BACKEND_PROVIDER=render and add the missing variables in Render Environment.",
-        }), 503
-    return None
+    if not missing:
+        return None
+    return jsonify({
+        "error": "Render API is not configured",
+        "missing": missing,
+        "hint": "Set BACKEND_PROVIDER=render and add the missing variables in Render Environment.",
+    }), 503
 
 
 def render_headers():
@@ -105,7 +106,6 @@ def render_request(method: str, path: str, **kwargs):
     config_error = render_config_error()
     if config_error:
         return None, config_error
-
     try:
         response = requests.request(
             method,
@@ -116,22 +116,18 @@ def render_request(method: str, path: str, **kwargs):
         )
     except requests.RequestException as exc:
         return None, (jsonify({"error": f"Render API unavailable: {exc}"}), 502)
-
     if response.status_code == 204:
         return {}, (jsonify({"ok": True}), 204)
-
     try:
         payload = response.json()
     except ValueError:
         payload = {"error": response.text or f"Render API HTTP {response.status_code}"}
-
     if not response.ok:
         if isinstance(payload, dict):
             detail = payload.get("message") or payload.get("error") or payload
         else:
             detail = payload
         return payload, (jsonify({"error": f"Render API error: {detail}"}), response.status_code)
-
     return payload, (jsonify(payload), response.status_code)
 
 
@@ -163,10 +159,6 @@ def parse_render_service_name(full_name: str):
     if plan not in PLANS or not template or not validate_name(user_name):
         return None
     return user_name, plan, template
-
-
-def validate_name(name: str) -> bool:
-    return bool(NAME_RE.fullmatch(name or ""))
 
 
 def render_management_key(name: str) -> str:
@@ -231,7 +223,7 @@ def serialize_render_service(service):
         "storage_gb": plan["storage_gb"],
         "price_yen": plan["price_yen"],
         "status": status,
-        "host_port": f"443/s/{name}" if url else None,
+        "host_port": None,
         "url": url,
         "container_id": service.get("id", "-"),
         "provider": "render",
@@ -239,11 +231,7 @@ def serialize_render_service(service):
 
 
 def render_template_details(template: str, render_plan: str):
-    common = {
-        "plan": render_plan,
-        "region": RENDER_REGION,
-        "numInstances": 1,
-    }
+    common = {"plan": render_plan, "region": RENDER_REGION, "numInstances": 1}
     if template == "python-web":
         return {
             **common,
@@ -279,7 +267,6 @@ def create_render_instance(data):
     name = str(data.get("name", "")).strip().lower()
     template = str(data.get("template", "python-web"))
     plan_id = str(data.get("plan", "free"))
-
     if not validate_name(name):
         return jsonify({"error": "name must be 3-32 chars: a-z, 0-9, hyphen"}), 400
     if template not in TEMPLATE_CODE:
@@ -290,13 +277,11 @@ def create_render_instance(data):
         return jsonify({
             "error": "有料プランの自動作成はまだ無効です。決済確認なしでRenderの有料サービスを作成すると運営側に課金されるため、現在は500MB無料プランのみ自動作成できます。"
         }), 402
-
     existing, error = find_render_service(name)
     if existing:
         return jsonify({"error": "instance already exists"}), 409
     if error and error[1] != 404:
         return error
-
     render_plan = RENDER_PLAN_MAP[plan_id]
     payload = {
         "type": "web_service",
@@ -312,7 +297,6 @@ def create_render_instance(data):
         ],
         "serviceDetails": render_template_details(template, render_plan),
     }
-
     created, result = render_request("POST", "/services", json=payload)
     if created is None:
         return result
@@ -339,11 +323,37 @@ def render_instance(name: str, key: str):
     return service, None
 
 
+# -----------------------------
+# Web pages
+# -----------------------------
 @app.get("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", active_page="home")
 
 
+@app.get("/plans")
+def plans_page():
+    return render_template("plans.html", active_page="plans")
+
+
+@app.get("/create")
+def create_page():
+    return render_template("create.html", active_page="create")
+
+
+@app.get("/servers")
+def servers_page():
+    return render_template("servers.html", active_page="servers")
+
+
+@app.get("/import")
+def import_page():
+    return render_template("import.html", active_page="import")
+
+
+# -----------------------------
+# Health / public API
+# -----------------------------
 @app.get("/health")
 def health():
     configured = True
@@ -383,7 +393,6 @@ def create_instance():
         if config_error:
             return config_error
         return create_render_instance(data)
-
     manage_key = secrets.token_urlsafe(32)
     payload = {
         "name": data.get("name", ""),
@@ -394,7 +403,7 @@ def create_instance():
     response, result = runner_request("POST", "/instances", json=payload)
     if response is None:
         return result
-    body, status = result
+    _, status = result
     if status == 201:
         response["manage_key"] = manage_key
         return jsonify(response), 201
@@ -406,13 +415,11 @@ def get_instance(name: str):
     key = instance_key_from_request()
     if not key:
         return jsonify({"error": "management key required"}), 401
-
     if BACKEND_PROVIDER == "render":
         service, error = render_instance(name, key)
         if error:
             return error
         return jsonify({"instance": serialize_render_service(service)})
-
     _, result = runner_request("GET", f"/instances/{name}", instance_key=key)
     return result
 
@@ -424,22 +431,20 @@ def instance_action(name: str, action: str):
     key = instance_key_from_request()
     if not key:
         return jsonify({"error": "management key required"}), 401
-
     if BACKEND_PROVIDER == "render":
         service, error = render_instance(name, key)
         if error:
             return error
-        service_id = quote(str(service.get("id", "")), safe="")
+        service_id_raw = str(service.get("id", ""))
+        service_id = quote(service_id_raw, safe="")
         endpoint = {"start": "resume", "stop": "suspend", "restart": "restart"}[action]
         _, result = render_request("POST", f"/services/{service_id}/{endpoint}")
-        status = result[1]
-        if status >= 400:
+        if result[1] >= 400:
             return result
-        fresh, fresh_error = retrieve_render_service(str(service.get("id", "")))
+        fresh, fresh_error = retrieve_render_service(service_id_raw)
         if fresh_error:
             return jsonify({"ok": True}), 200
         return jsonify({"instance": serialize_render_service(fresh)})
-
     _, result = runner_request("POST", f"/instances/{name}/{action}", instance_key=key)
     return result
 
@@ -449,18 +454,15 @@ def delete_instance(name: str):
     key = instance_key_from_request()
     if not key:
         return jsonify({"error": "management key required"}), 401
-
     if BACKEND_PROVIDER == "render":
         service, error = render_instance(name, key)
         if error:
             return error
         service_id = quote(str(service.get("id", "")), safe="")
         _, result = render_request("DELETE", f"/services/{service_id}")
-        status = result[1]
-        if status >= 400:
+        if result[1] >= 400:
             return result
         return jsonify({"ok": True})
-
     _, result = runner_request("DELETE", f"/instances/{name}", instance_key=key)
     return result
 
@@ -470,7 +472,6 @@ def instance_logs(name: str):
     key = instance_key_from_request()
     if not key:
         return jsonify({"error": "management key required"}), 401
-
     if BACKEND_PROVIDER == "render":
         service, error = render_instance(name, key)
         if error:
@@ -482,7 +483,6 @@ def instance_logs(name: str):
                 "実ログはRender DashboardのLogsから確認できます。"
             )
         })
-
     _, result = runner_request("GET", f"/instances/{name}/logs", instance_key=key)
     return result
 
