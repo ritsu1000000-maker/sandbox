@@ -3,11 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
   <title>{% block title %}Rental Server{% endblock %}</title>
-  <meta name="description" content="無料500MBから選べるシンプルなレンタルサーバーサービス。">
+  <meta name="description" content="アカウントと契約で管理するレンタルサーバーサービス。">
   <meta name="theme-color" content="#1768c4">
   <link rel="stylesheet" href="{{ url_for('static', filename='site.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='detail.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='account.css') }}">
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -18,11 +20,21 @@
     <nav class="global-nav" aria-label="メインナビゲーション">
       <a href="/" class="{% if active_page=='home' %}active{% endif %}">ホーム</a>
       <a href="/plans" class="{% if active_page=='plans' %}active{% endif %}">料金プラン</a>
-      <a href="/create" class="{% if active_page=='create' %}active{% endif %}">サーバー作成</a>
-      <a href="/servers" class="{% if active_page=='servers' %}active{% endif %}">マイサーバー</a>
-      <a href="/import" class="{% if active_page=='import' %}active{% endif %}">サーバー追加</a>
+      {% if current_user %}
+        <a href="/dashboard" class="{% if active_page=='dashboard' %}active{% endif %}">ダッシュボード</a>
+        <a href="/create" class="{% if active_page=='create' %}active{% endif %}">新規契約</a>
+        <a href="/billing" class="{% if active_page=='billing' %}active{% endif %}">契約・請求</a>
+      {% endif %}
     </nav>
-    <a class="header-action" href="/servers">マイサーバー</a>
+    <div class="header-account">
+      {% if current_user %}
+        <span class="header-user">{{ current_user.email }}</span>
+        <form method="post" action="/logout" class="logout-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">ログアウト</button></form>
+      {% else %}
+        <a class="header-login" href="/login">ログイン</a>
+        <a class="header-action" href="/signup">新規登録</a>
+      {% endif %}
+    </div>
   </div>
 </header>
 {% block notice %}{% endblock %}
@@ -30,7 +42,7 @@
 <footer>
   <div class="container footer-inner">
     <div class="brand"><span class="brand-mark">RS</span><span class="brand-accent">RENTAL</span> SERVER</div>
-    <div>Simple application hosting.</div>
+    <div>Account-based application hosting.</div>
   </div>
 </footer>
 <script src="{{ url_for('static', filename='site.js') }}"></script>
