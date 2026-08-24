@@ -59,10 +59,5 @@ class RentalManager:
             raise ServiceError("management key required", 401)
         return self.provider.delete(name, key)
 
-    def logs(self, name, key):
-        if not key:
-            raise ServiceError("management key required", 401)
-        return self.provider.logs(name, key)
-
     def public_url(self, name):
         return self.provider.public_url(name)
