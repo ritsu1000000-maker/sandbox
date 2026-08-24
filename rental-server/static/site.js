@@ -1,4 +1,3 @@
-const STORE='rental-server-items-v1';
 const PLAN_META={
   free:{name:'500MB',storage:'500MB',price:0,ram:'128MB',cpu:'0.1'},
   small:{name:'1GB',storage:'1GB',price:500,ram:'256MB',cpu:'0.25'},
@@ -13,17 +12,21 @@ const TEMPLATE_META={
 };
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+const csrf=()=>document.querySelector('meta[name="csrf-token"]')?.content||'';
 function yen(v){return `¥${Number(v||0).toLocaleString('ja-JP')}`}
-function items(){try{return JSON.parse(localStorage.getItem(STORE)||'[]')}catch{return []}}
-function save(list){localStorage.setItem(STORE,JSON.stringify(list))}
-function remember(name,key){const list=items().filter(x=>x.name!==name);list.push({name,key});save(list)}
-function forget(name){save(items().filter(x=>x.name!==name))}
-function keyFor(name){return items().find(x=>x.name===name)?.key||''}
-function message(text,ok=false){const el=$('#message');if(!el)return;el.textContent=text;el.className='msg '+(ok?'ok':'err');window.clearTimeout(el._timer);el._timer=setTimeout(()=>el.className='msg',5000)}
-async function api(path,options={}){const r=await fetch(path,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options});const data=await r.json().catch(()=>({error:'invalid response'}));if(!r.ok)throw new Error(data.error||`HTTP ${r.status}`);return data}
-function planFor(i){return PLAN_META[i.plan]||{name:i.plan||'-',storage:i.storage_gb?`${i.storage_gb}GB`:'-',price:i.price_yen||0,ram:i.memory||'-',cpu:i.cpu||'-'}}
-function storageFor(i,p){return i.storage_gb===0.5?'500MB':(i.storage_gb?`${i.storage_gb}GB`:p.storage)}
-function directUrlFor(i){return i.url||((typeof i.host_port==='number')?`${location.protocol}//${location.hostname}:${i.host_port}`:null)}
+function message(text,ok=false){const el=$('#message');if(!el)return;el.textContent=text;el.className='msg '+(ok?'ok':'err');window.clearTimeout(el._timer);el._timer=setTimeout(()=>el.className='msg',6000)}
+async function api(path,options={}){
+  const method=(options.method||'GET').toUpperCase();
+  const headers={'Content-Type':'application/json',...(options.headers||{})};
+  if(!['GET','HEAD','OPTIONS'].includes(method))headers['X-CSRF-Token']=csrf();
+  const r=await fetch(path,{...options,headers});
+  const data=await r.json().catch(()=>({error:'invalid response'}));
+  if(r.status===401){location.href='/login?next='+encodeURIComponent(location.pathname);throw new Error('ログインが必要です。')}
+  if(!r.ok)throw new Error(data.error||`HTTP ${r.status}`);
+  return data;
+}
+function normalizeName(raw){return String(raw||'').trim().toLowerCase().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'').replace(/-+/g,'-').replace(/^-|-$/g,'').slice(0,32)}
+function formatDate(value){if(!value)return '-';const d=new Date(value);return Number.isNaN(d.getTime())?String(value).slice(0,10):d.toLocaleDateString('ja-JP')}
 
 function initCustomSelect(){
   document.querySelectorAll('[data-custom-select]').forEach(root=>{
@@ -51,100 +54,70 @@ function initCreatePage(){
   const choices=[...document.querySelectorAll('[data-plan-choice]')];
   const planInput=$('#plan');
   const selectedText=$('#selectedPlanText');
+  const nameInput=$('#name');
   const requested=new URLSearchParams(location.search).get('plan');
   let current=PLAN_META[requested]?requested:'free';
-  function selectPlan(id){current=PLAN_META[id]?id:'free';planInput.value=current;choices.forEach(b=>b.classList.toggle('active',b.dataset.planChoice===current));const p=PLAN_META[current];selectedText.textContent=`選択中：${p.name} / ${yen(p.price)} 月 · RAM ${p.ram} · CPU ${p.cpu}`}
+  function selectPlan(id){current=PLAN_META[id]?id:'free';planInput.value=current;choices.forEach(b=>b.classList.toggle('active',b.dataset.planChoice===current));const p=PLAN_META[current];selectedText.textContent=`選択中：${p.name} / ${yen(p.price)} 月 · RAM ${p.ram} · CPU ${p.cpu}${p.price?' · 支払い確認後に発行':' · 契約後すぐ発行'}`}
   choices.forEach(b=>b.addEventListener('click',()=>selectPlan(b.dataset.planChoice)));
+  nameInput?.addEventListener('blur',()=>{nameInput.value=normalizeName(nameInput.value)});
   selectPlan(current);
   form.addEventListener('submit',async e=>{
     e.preventDefault();
-    const raw=$('#name').value.trim().toLowerCase();
-    const name=raw.replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'').replace(/-+/g,'-').replace(/^-|-$/g,'').slice(0,32);
-    $('#name').value=name;
-    if(!name){message('サーバー名を入力してください。英数字とハイフンが使えます。');return}
+    const name=normalizeName(nameInput.value);nameInput.value=name;
+    if(!name){message('サーバー名を入力してください。');return}
+    const button=form.querySelector('button[type="submit"]');button.disabled=true;button.textContent='契約処理中…';
     try{
-      const data=await api('/api/instances',{method:'POST',body:JSON.stringify({name,template:$('#template').value,plan:planInput.value})});
-      remember(data.instance.name,data.manage_key);message('サーバーを作成しました。管理画面へ移動します。',true);setTimeout(()=>location.href=`/servers/${encodeURIComponent(data.instance.name)}`,700);
-    }catch(err){message(err.message)}
+      const data=await api('/api/contracts',{method:'POST',body:JSON.stringify({name,template:$('#template').value,plan:planInput.value})});
+      const c=data.contract;
+      if(c.status==='pending_payment'){
+        message('契約を作成しました。支払い確認待ちです。',true);
+        setTimeout(()=>location.href='/billing',650);
+      }else{
+        message('契約とサーバー発行が完了しました。',true);
+        setTimeout(()=>location.href=`/servers/${c.id}`,650);
+      }
+    }catch(err){message(err.message)}finally{button.disabled=false;button.textContent='この内容で契約'}
   });
 }
 
-async function loadServers(){
-  const root=$('#instances');if(!root)return;
-  const stored=items();
-  if(!stored.length){root.innerHTML='<div class="empty">まだサーバーがありません。<br><a href="/create" style="color:#1768c4;font-weight:800">サーバーを作成する</a></div>';return}
-  const cards=[];
-  for(const saved of stored){
-    try{
-      const data=await api(`/api/instances/${encodeURIComponent(saved.name)}`,{headers:{'X-Instance-Key':saved.key}});
-      const i=data.instance;
-      const plan=planFor(i);const storage=storageFor(i,plan);const directUrl=directUrlFor(i);const runtime=TEMPLATE_META[i.template]?.name||i.template;
-      cards.push(`<article class="server-card">
-        <div class="server-head"><span class="server-name">${esc(i.name)}</span><span class="tag status-${esc(i.status)}">${esc(i.status)}</span></div>
-        <span class="plan-badge">${esc(storage)} · ${esc(yen(i.price_yen??plan.price))}/月 · RAM ${esc(i.memory||plan.ram)} · CPU ${esc(i.cpu??plan.cpu)}</span>
-        <div class="meta">実行環境：${esc(runtime)}<br>Service：${esc(i.container_id)}<br>${directUrl?`URL：<a href="${esc(directUrl)}" target="_blank" rel="noopener">${esc(directUrl)}</a>`:'URL：準備中'}</div>
-        <div class="actions">
-          <a class="server-detail-link" href="/servers/${encodeURIComponent(i.name)}">管理画面を開く →</a>
-          <button class="primary-action" onclick="serverAction('${esc(i.name)}','start')">Start</button>
-          <button onclick="serverAction('${esc(i.name)}','stop')">Stop</button>
-          <button onclick="serverAction('${esc(i.name)}','restart')">Restart</button>
-        </div>
-      </article>`);
-    }catch(err){cards.push(`<article class="server-card"><div class="server-name">${esc(saved.name)}</div><div class="meta">読み込み失敗：${esc(err.message)}</div><div class="actions"><button class="danger" onclick="forgetServer('${esc(saved.name)}')">この端末から削除</button></div></article>`)}
-  }
-  root.innerHTML=cards.join('');
-}
-async function serverAction(name,action){try{await api(`/api/instances/${encodeURIComponent(name)}/${action}`,{method:'POST',headers:{'X-Instance-Key':keyFor(name)}});await loadServers();await loadServerDetail()}catch(err){alert(err.message)}}
-async function removeServer(name){if(!confirm(`${name} を削除しますか？`))return;try{await api(`/api/instances/${encodeURIComponent(name)}`,{method:'DELETE',headers:{'X-Instance-Key':keyFor(name)}});forget(name);await loadServers()}catch(err){alert(err.message)}}
-function forgetServer(name){forget(name);loadServers()}
-
-async function loadServerDetail(){
+async function loadContractDetail(){
   const root=$('#serverDetail');if(!root)return;
-  const name=root.dataset.serverName;const key=keyFor(name);
-  if(!key){root.innerHTML=`<div class="empty">このブラウザには <strong>${esc(name)}</strong> の管理キーがありません。<br><a href="/import" style="color:#1768c4;font-weight:800">管理キーで追加する</a></div>`;return}
+  const id=root.dataset.contractId;
   try{
-    const data=await api(`/api/instances/${encodeURIComponent(name)}`,{headers:{'X-Instance-Key':key}});const i=data.instance;
-    const plan=planFor(i);const storage=storageFor(i,plan);const runtime=TEMPLATE_META[i.template]?.name||i.template;const directUrl=directUrlFor(i);
+    const data=await api(`/api/contracts/${encodeURIComponent(id)}`);
+    const c=data.contract;const i=data.instance||{};const meta=PLAN_META[c.plan]||{};const runtime=TEMPLATE_META[c.template]?.name||c.template;
+    const directUrl=i.url||c.public_url||null;
+    const serverStatus=i.status||(c.status==='active'?'準備中':c.status);
+    if(c.status==='pending_payment'){
+      root.innerHTML=`<div class="detail-panel"><span class="detail-kicker">PAYMENT REQUIRED</span><h2>${esc(c.name)}</h2><p class="detail-help">この契約は支払い確認待ちです。決済が確認されるまで実サーバーは発行されません。</p><a class="button button-primary" href="/billing">契約・請求を確認</a></div>`;return;
+    }
+    if(c.status==='canceled'){
+      root.innerHTML=`<div class="detail-panel"><span class="detail-kicker">CANCELED</span><h2>${esc(c.name)}</h2><p class="detail-help">この契約は解約済みです。</p><a class="button button-outline" href="/dashboard">ダッシュボードへ</a></div>`;return;
+    }
     root.innerHTML=`
       <div class="detail-grid">
         <section class="detail-panel detail-main">
-          <div class="detail-title-row"><div><span class="detail-kicker">OVERVIEW</span><h2>${esc(i.name)}</h2></div><span class="tag status-${esc(i.status)}">${esc(i.status)}</span></div>
+          <div class="detail-title-row"><div><span class="detail-kicker">CONTRACT #${esc(c.id)}</span><h2>${esc(c.name)}</h2></div><span class="tag status-${esc(i.status||c.status)}">${esc(serverStatus)}</span></div>
           <div class="detail-stat-grid">
-            <div class="detail-stat"><span>プラン</span><strong>${esc(storage)}</strong><small>${esc(yen(i.price_yen??plan.price))} / 月</small></div>
-            <div class="detail-stat"><span>実行環境</span><strong>${esc(runtime)}</strong><small>${esc(i.provider||'runner')}</small></div>
-            <div class="detail-stat"><span>RAM</span><strong>${esc(i.memory||plan.ram)}</strong><small>割り当て</small></div>
-            <div class="detail-stat"><span>CPU</span><strong>${esc(i.cpu??plan.cpu)}</strong><small>割り当て</small></div>
+            <div class="detail-stat"><span>プラン</span><strong>${esc(c.plan_name||meta.name)}</strong><small>${esc(yen(c.price_yen))} / 月</small></div>
+            <div class="detail-stat"><span>実行環境</span><strong>${esc(runtime)}</strong><small>${esc(c.provider||'-')}</small></div>
+            <div class="detail-stat"><span>RAM</span><strong>${esc(c.memory||meta.ram)}</strong><small>契約値</small></div>
+            <div class="detail-stat"><span>CPU</span><strong>${esc(c.cpu??meta.cpu)}</strong><small>契約値</small></div>
           </div>
           <div class="detail-meta-list">
-            <div><span>Service ID</span><code>${esc(i.container_id)}</code></div>
+            <div><span>契約状態</span><strong>${esc(c.status)}</strong></div>
+            <div><span>次回更新</span><strong>${esc(formatDate(c.renews_at))}</strong></div>
+            <div><span>Service ID</span><code>${esc(i.container_id||'準備中')}</code></div>
             <div><span>Region</span><strong>${esc(i.region||'-')}</strong></div>
             <div><span>Public URL</span>${directUrl?`<a href="${esc(directUrl)}" target="_blank" rel="noopener">${esc(directUrl)}</a>`:'<strong>準備中</strong>'}</div>
           </div>
-          <div class="detail-actions">
-            <button class="button button-primary" onclick="detailAction('${esc(i.name)}','start')">Start</button>
-            <button class="button button-outline" onclick="detailAction('${esc(i.name)}','stop')">Stop</button>
-            <button class="button button-outline" onclick="detailAction('${esc(i.name)}','restart')">Restart</button>
-            ${directUrl?`<a class="button button-outline" href="${esc(directUrl)}" target="_blank" rel="noopener">サイトを開く</a>`:''}
-          </div>
+          ${c.status==='active'?`<div class="detail-actions"><button class="button button-primary" onclick="contractAction(${Number(c.id)},'start')">Start</button><button class="button button-outline" onclick="contractAction(${Number(c.id)},'stop')">Stop</button><button class="button button-outline" onclick="contractAction(${Number(c.id)},'restart')">Restart</button>${directUrl?`<a class="button button-outline" href="${esc(directUrl)}" target="_blank" rel="noopener">サイトを開く</a>`:''}</div>`:''}
         </section>
-        <aside class="detail-panel">
-          <span class="detail-kicker">MANAGEMENT</span><h3>管理</h3>
-          <p class="detail-help">管理操作には、このブラウザに保存されたサーバー専用キーを使用します。</p>
-          <button class="wide-action danger-action" onclick="detailDelete('${esc(i.name)}')">サーバーを削除</button>
-        </aside>
+        <aside class="detail-panel"><span class="detail-kicker">RENTAL CONTRACT</span><h3>契約管理</h3><p class="detail-help">サーバー操作権限はログイン中の契約者アカウントで確認されます。</p><a class="wide-action" href="/billing">契約・請求を見る</a><button class="wide-action danger-action" onclick="cancelContract(${Number(c.id)},'${esc(c.name)}')">契約を解約</button></aside>
       </div>`;
   }catch(err){root.innerHTML=`<div class="empty">読み込みに失敗しました。<br>${esc(err.message)}</div>`}
 }
-async function detailAction(name,action){try{await api(`/api/instances/${encodeURIComponent(name)}/${action}`,{method:'POST',headers:{'X-Instance-Key':keyFor(name)}});await loadServerDetail()}catch(err){alert(err.message)}}
-async function detailDelete(name){if(!confirm(`${name} を完全に削除しますか？`))return;try{await api(`/api/instances/${encodeURIComponent(name)}`,{method:'DELETE',headers:{'X-Instance-Key':keyFor(name)}});forget(name);location.href='/servers'}catch(err){alert(err.message)}}
+async function contractAction(id,action){try{await api(`/api/contracts/${id}/${action}`,{method:'POST'});await loadContractDetail()}catch(err){alert(err.message)}}
+async function cancelContract(id,name){if(!confirm(`${name} の契約を解約しますか？ 実サーバーも削除されます。`))return;try{await api(`/api/contracts/${id}/cancel`,{method:'POST'});location.href='/dashboard'}catch(err){alert(err.message)}}
 
-function initImportPage(){
-  const form=$('#importForm');if(!form)return;
-  form.addEventListener('submit',async e=>{
-    e.preventDefault();const name=$('#importName').value.trim().toLowerCase();const key=$('#importKey').value.trim();
-    if(!name||!key){message('サーバー名と管理キーを入力してください');return}
-    try{await api(`/api/instances/${encodeURIComponent(name)}`,{headers:{'X-Instance-Key':key}});remember(name,key);message('サーバーを追加しました。',true);setTimeout(()=>location.href=`/servers/${encodeURIComponent(name)}`,650)}catch(err){message(err.message)}
-  });
-}
-
-document.addEventListener('DOMContentLoaded',()=>{initCustomSelect();initCreatePage();initImportPage();loadServers();loadServerDetail()});
+document.addEventListener('DOMContentLoaded',()=>{initCustomSelect();initCreatePage();loadContractDetail()});
