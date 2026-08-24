@@ -1,26 +1,26 @@
 {% extends "base.html" %}
-{% block title %}サーバー作成｜Rental Server{% endblock %}
+{% block title %}新規契約｜Rental Server{% endblock %}
 {% block content %}
-<section class="page-hero"><div class="container"><span class="page-label">CREATE SERVER</span><h1>サーバーを作成</h1><p>プラン、サーバー名、実行環境を選んで作成します。料金比較は <a href="/plans" style="color:#1768c4;font-weight:800">/plans</a> から確認できます。</p></div></section>
+<section class="page-hero"><div class="container"><span class="page-label">NEW CONTRACT</span><h1>レンタルサーバーを契約</h1><p>プラン、サーバー名、実行環境を選んで契約します。無料プランは契約後すぐ発行されます。</p></div></section>
 <section class="section">
   <div class="container">
-    <header class="section-heading"><span class="label">STEP 01</span><h2>プランを選択</h2><p>作成するサーバーの容量と性能を選択してください。</p></header>
+    <header class="section-heading"><span class="label">STEP 01</span><h2>契約プランを選択</h2><p>容量と性能、月額を確認して選択してください。</p></header>
     <div class="plan-chooser">
-      <button type="button" class="plan-choice" data-plan-choice="free"><strong>500MB</strong><span>無料 · RAM 128MB · CPU 0.1</span></button>
-      <button type="button" class="plan-choice" data-plan-choice="small"><strong>1GB</strong><span>¥500/月 · RAM 256MB</span></button>
-      <button type="button" class="plan-choice" data-plan-choice="medium"><strong>10GB</strong><span>¥1,500/月 · RAM 512MB</span></button>
-      <button type="button" class="plan-choice" data-plan-choice="large"><strong>50GB</strong><span>¥2,000/月 · RAM 1GB</span></button>
-      <button type="button" class="plan-choice" data-plan-choice="xlarge"><strong>100GB</strong><span>¥4,000/月 · RAM 2GB</span></button>
+      <button type="button" class="plan-choice" data-plan-choice="free"><strong>500MB</strong><span>無料 · RAM 128MB · CPU 0.1 · 即時発行</span></button>
+      <button type="button" class="plan-choice" data-plan-choice="small"><strong>1GB</strong><span>¥500/月 · RAM 256MB · 支払い確認後</span></button>
+      <button type="button" class="plan-choice" data-plan-choice="medium"><strong>10GB</strong><span>¥1,500/月 · RAM 512MB · 支払い確認後</span></button>
+      <button type="button" class="plan-choice" data-plan-choice="large"><strong>50GB</strong><span>¥2,000/月 · RAM 1GB · 支払い確認後</span></button>
+      <button type="button" class="plan-choice" data-plan-choice="xlarge"><strong>100GB</strong><span>¥4,000/月 · RAM 2GB · 支払い確認後</span></button>
     </div>
-    <header class="section-heading"><span class="label">STEP 02</span><h2>基本設定</h2><p>サーバー名と実行環境を指定します。</p></header>
+    <header class="section-heading"><span class="label">STEP 02</span><h2>サーバー設定</h2><p>契約画面に表示するサーバー名と実行環境を指定します。</p></header>
     <div class="application-box">
       <form id="createForm">
         <input type="hidden" id="plan" value="free">
         <div class="form-grid">
           <div class="field">
             <label for="name">サーバー名</label>
-            <input id="name" placeholder="my-server" autocomplete="off" maxlength="32" pattern="[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?" title="1〜32文字の英小文字・数字・ハイフンを使用できます。ハイフンは先頭・末尾には使えません。" required>
-            <p class="small-note">1〜32文字。英小文字・数字・ハイフンのみ使用できます。大文字は自動で小文字、空白はハイフンに変換します。</p>
+            <input id="name" placeholder="my-server" autocomplete="off" maxlength="32" pattern="[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?" title="1〜32文字の英小文字・数字・ハイフンを使用できます。" required>
+            <p class="small-note">1〜32文字。大文字は小文字、空白はハイフンに自動変換します。</p>
           </div>
           <div class="field">
             <label>実行環境</label>
@@ -34,29 +34,13 @@
               </div>
             </div>
           </div>
-          <button class="button button-primary create-btn" type="submit">この内容で作成</button>
+          <button class="button button-primary create-btn" type="submit">この内容で契約</button>
         </div>
         <p class="small-note" id="selectedPlanText"></p>
+        <p class="small-note">有料プランは決済確認が完了するまで実サーバーを発行しません。</p>
         <div id="message" class="msg"></div>
       </form>
     </div>
   </div>
 </section>
-{% endblock %}
-{% block scripts %}
-<script>
-document.addEventListener('DOMContentLoaded', () => {
-  const input = document.getElementById('name');
-  if (!input) return;
-  const normalize = () => {
-    input.value = input.value
-      .toLowerCase()
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .replace(/^-+|-+$/g, '');
-  };
-  input.addEventListener('input', normalize);
-  input.addEventListener('blur', normalize);
-});
-</script>
 {% endblock %}
