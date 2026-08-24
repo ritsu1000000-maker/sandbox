@@ -21,12 +21,14 @@ function forget(name){save(items().filter(x=>x.name!==name))}
 function keyFor(name){return items().find(x=>x.name===name)?.key||''}
 function message(text,ok=false){const el=$('#message');if(!el)return;el.textContent=text;el.className='msg '+(ok?'ok':'err');window.clearTimeout(el._timer);el._timer=setTimeout(()=>el.className='msg',5000)}
 async function api(path,options={}){const r=await fetch(path,{headers:{'Content-Type':'application/json',...(options.headers||{})},...options});const data=await r.json().catch(()=>({error:'invalid response'}));if(!r.ok)throw new Error(data.error||`HTTP ${r.status}`);return data}
+function planFor(i){return PLAN_META[i.plan]||{name:i.plan||'-',storage:i.storage_gb?`${i.storage_gb}GB`:'-',price:i.price_yen||0,ram:i.memory||'-',cpu:i.cpu||'-'}}
+function storageFor(i,p){return i.storage_gb===0.5?'500MB':(i.storage_gb?`${i.storage_gb}GB`:p.storage)}
+function directUrlFor(i){return i.url||((typeof i.host_port==='number')?`${location.protocol}//${location.hostname}:${i.host_port}`:null)}
 
 function initCustomSelect(){
   document.querySelectorAll('[data-custom-select]').forEach(root=>{
     const hidden=root.querySelector('input[type="hidden"]');
     const trigger=root.querySelector('.select-trigger');
-    const menu=root.querySelector('.select-menu');
     const label=root.querySelector('[data-select-label]');
     const desc=root.querySelector('[data-select-desc]');
     const icon=root.querySelector('[data-select-icon]');
@@ -59,7 +61,7 @@ function initCreatePage(){
     const name=$('#name').value.trim().toLowerCase();
     try{
       const data=await api('/api/instances',{method:'POST',body:JSON.stringify({name,template:$('#template').value,plan:planInput.value})});
-      remember(data.instance.name,data.manage_key);message('サーバーを作成しました。マイサーバーへ移動します。',true);setTimeout(()=>location.href='/servers',700);
+      remember(data.instance.name,data.manage_key);message('サーバーを作成しました。管理画面へ移動します。',true);setTimeout(()=>location.href=`/servers/${encodeURIComponent(data.instance.name)}`,700);
     }catch(err){message(err.message)}
   });
 }
@@ -73,40 +75,77 @@ async function loadServers(){
     try{
       const data=await api(`/api/instances/${encodeURIComponent(saved.name)}`,{headers:{'X-Instance-Key':saved.key}});
       const i=data.instance;
-      const plan=PLAN_META[i.plan]||{storage:i.storage_gb?`${i.storage_gb}GB`:'-',price:i.price_yen||0,ram:'-',cpu:'-'};
-      const storage=i.storage_gb===0.5?'500MB':(i.storage_gb?`${i.storage_gb}GB`:plan.storage);
-      const directUrl=i.url||((typeof i.host_port==='number')?`${location.protocol}//${location.hostname}:${i.host_port}`:null);
-      const runtime=TEMPLATE_META[i.template]?.name||i.template;
+      const plan=planFor(i);const storage=storageFor(i,plan);const directUrl=directUrlFor(i);const runtime=TEMPLATE_META[i.template]?.name||i.template;
       cards.push(`<article class="server-card">
         <div class="server-head"><span class="server-name">${esc(i.name)}</span><span class="tag status-${esc(i.status)}">${esc(i.status)}</span></div>
-        <span class="plan-badge">${esc(storage)} · ${esc(yen(i.price_yen??plan.price))}/月 · RAM ${esc(plan.ram)} · CPU ${esc(plan.cpu)}</span>
+        <span class="plan-badge">${esc(storage)} · ${esc(yen(i.price_yen??plan.price))}/月 · RAM ${esc(i.memory||plan.ram)} · CPU ${esc(i.cpu??plan.cpu)}</span>
         <div class="meta">実行環境：${esc(runtime)}<br>Service：${esc(i.container_id)}<br>${directUrl?`URL：<a href="${esc(directUrl)}" target="_blank" rel="noopener">${esc(directUrl)}</a>`:'URL：準備中'}</div>
         <div class="actions">
+          <a class="server-detail-link" href="/servers/${encodeURIComponent(i.name)}">管理画面を開く →</a>
           <button class="primary-action" onclick="serverAction('${esc(i.name)}','start')">Start</button>
           <button onclick="serverAction('${esc(i.name)}','stop')">Stop</button>
           <button onclick="serverAction('${esc(i.name)}','restart')">Restart</button>
-          <button onclick="showLogs('${esc(i.name)}')">Logs</button>
-          <button class="danger" onclick="removeServer('${esc(i.name)}')">Delete</button>
         </div>
-        <div class="keybox">管理キーはこのブラウザに保存されています。</div>
-        <div id="logs-${esc(i.name)}" class="logs"></div>
       </article>`);
     }catch(err){cards.push(`<article class="server-card"><div class="server-name">${esc(saved.name)}</div><div class="meta">読み込み失敗：${esc(err.message)}</div><div class="actions"><button class="danger" onclick="forgetServer('${esc(saved.name)}')">この端末から削除</button></div></article>`)}
   }
   root.innerHTML=cards.join('');
 }
-async function serverAction(name,action){try{await api(`/api/instances/${encodeURIComponent(name)}/${action}`,{method:'POST',headers:{'X-Instance-Key':keyFor(name)}});await loadServers()}catch(err){alert(err.message)}}
+async function serverAction(name,action){try{await api(`/api/instances/${encodeURIComponent(name)}/${action}`,{method:'POST',headers:{'X-Instance-Key':keyFor(name)}});await loadServers();await loadServerDetail()}catch(err){alert(err.message)}}
 async function removeServer(name){if(!confirm(`${name} を削除しますか？`))return;try{await api(`/api/instances/${encodeURIComponent(name)}`,{method:'DELETE',headers:{'X-Instance-Key':keyFor(name)}});forget(name);await loadServers()}catch(err){alert(err.message)}}
-async function showLogs(name){try{const d=await api(`/api/instances/${encodeURIComponent(name)}/logs`,{headers:{'X-Instance-Key':keyFor(name)}});const el=document.getElementById(`logs-${name}`);el.style.display='block';el.textContent=d.logs||'(no logs)'}catch(err){alert(err.message)}}
+async function showLogs(name){try{const d=await api(`/api/instances/${encodeURIComponent(name)}/logs`,{headers:{'X-Instance-Key':keyFor(name)}});const el=document.getElementById(`logs-${name}`);if(el){el.style.display='block';el.textContent=d.logs||'(no logs)'}}catch(err){alert(err.message)}}
 function forgetServer(name){forget(name);loadServers()}
+
+async function loadServerDetail(){
+  const root=$('#serverDetail');if(!root)return;
+  const name=root.dataset.serverName;const key=keyFor(name);
+  if(!key){root.innerHTML=`<div class="empty">このブラウザには <strong>${esc(name)}</strong> の管理キーがありません。<br><a href="/import" style="color:#1768c4;font-weight:800">管理キーで追加する</a></div>`;return}
+  try{
+    const data=await api(`/api/instances/${encodeURIComponent(name)}`,{headers:{'X-Instance-Key':key}});const i=data.instance;
+    const plan=planFor(i);const storage=storageFor(i,plan);const runtime=TEMPLATE_META[i.template]?.name||i.template;const directUrl=directUrlFor(i);
+    root.innerHTML=`
+      <div class="detail-grid">
+        <section class="detail-panel detail-main">
+          <div class="detail-title-row"><div><span class="detail-kicker">OVERVIEW</span><h2>${esc(i.name)}</h2></div><span class="tag status-${esc(i.status)}">${esc(i.status)}</span></div>
+          <div class="detail-stat-grid">
+            <div class="detail-stat"><span>プラン</span><strong>${esc(storage)}</strong><small>${esc(yen(i.price_yen??plan.price))} / 月</small></div>
+            <div class="detail-stat"><span>実行環境</span><strong>${esc(runtime)}</strong><small>${esc(i.provider||'runner')}</small></div>
+            <div class="detail-stat"><span>RAM</span><strong>${esc(i.memory||plan.ram)}</strong><small>割り当て</small></div>
+            <div class="detail-stat"><span>CPU</span><strong>${esc(i.cpu??plan.cpu)}</strong><small>割り当て</small></div>
+          </div>
+          <div class="detail-meta-list">
+            <div><span>Service ID</span><code>${esc(i.container_id)}</code></div>
+            <div><span>Region</span><strong>${esc(i.region||'-')}</strong></div>
+            <div><span>Public URL</span>${directUrl?`<a href="${esc(directUrl)}" target="_blank" rel="noopener">${esc(directUrl)}</a>`:'<strong>準備中</strong>'}</div>
+          </div>
+          <div class="detail-actions">
+            <button class="button button-primary" onclick="detailAction('${esc(i.name)}','start')">Start</button>
+            <button class="button button-outline" onclick="detailAction('${esc(i.name)}','stop')">Stop</button>
+            <button class="button button-outline" onclick="detailAction('${esc(i.name)}','restart')">Restart</button>
+            ${directUrl?`<a class="button button-outline" href="${esc(directUrl)}" target="_blank" rel="noopener">サイトを開く</a>`:''}
+          </div>
+        </section>
+        <aside class="detail-panel">
+          <span class="detail-kicker">MANAGEMENT</span><h3>管理</h3>
+          <p class="detail-help">管理操作には、このブラウザに保存されたサーバー専用キーを使用します。</p>
+          <button class="wide-action" onclick="detailLogs('${esc(i.name)}')">ログを読み込む</button>
+          <button class="wide-action danger-action" onclick="detailDelete('${esc(i.name)}')">サーバーを削除</button>
+        </aside>
+      </div>
+      <section class="detail-panel detail-logs-panel"><div class="detail-title-row"><div><span class="detail-kicker">LOGS</span><h3>ログ</h3></div><button class="small-refresh" onclick="detailLogs('${esc(i.name)}')">更新</button></div><pre id="detailLogs" class="detail-logs">「ログを読み込む」を押すと表示されます。</pre></section>`;
+  }catch(err){root.innerHTML=`<div class="empty">読み込みに失敗しました。<br>${esc(err.message)}</div>`}
+}
+async function detailAction(name,action){try{await api(`/api/instances/${encodeURIComponent(name)}/${action}`,{method:'POST',headers:{'X-Instance-Key':keyFor(name)}});await loadServerDetail()}catch(err){alert(err.message)}}
+async function detailLogs(name){try{const d=await api(`/api/instances/${encodeURIComponent(name)}/logs`,{headers:{'X-Instance-Key':keyFor(name)}});const el=$('#detailLogs');if(el)el.textContent=d.logs||'(no logs)'}catch(err){alert(err.message)}}
+async function detailDelete(name){if(!confirm(`${name} を完全に削除しますか？`))return;try{await api(`/api/instances/${encodeURIComponent(name)}`,{method:'DELETE',headers:{'X-Instance-Key':keyFor(name)}});forget(name);location.href='/servers'}catch(err){alert(err.message)}}
 
 function initImportPage(){
   const form=$('#importForm');if(!form)return;
   form.addEventListener('submit',async e=>{
     e.preventDefault();const name=$('#importName').value.trim().toLowerCase();const key=$('#importKey').value.trim();
     if(!name||!key){message('サーバー名と管理キーを入力してください');return}
-    try{await api(`/api/instances/${encodeURIComponent(name)}`,{headers:{'X-Instance-Key':key}});remember(name,key);message('サーバーを追加しました。',true);setTimeout(()=>location.href='/servers',650)}catch(err){message(err.message)}
+    try{await api(`/api/instances/${encodeURIComponent(name)}`,{headers:{'X-Instance-Key':key}});remember(name,key);message('サーバーを追加しました。',true);setTimeout(()=>location.href=`/servers/${encodeURIComponent(name)}`,650)}catch(err){message(err.message)}
   });
 }
 
-document.addEventListener('DOMContentLoaded',()=>{initCustomSelect();initCreatePage();initImportPage();loadServers()});
+document.addEventListener('DOMContentLoaded',()=>{initCustomSelect();initCreatePage();initImportPage();loadServers();loadServerDetail()});
