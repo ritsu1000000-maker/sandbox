@@ -1,20 +1,33 @@
 import os
+import re
+import secrets
 import uuid
+from datetime import timedelta
+from functools import wraps
 
-from flask import Flask, jsonify, redirect, render_template, request
+from flask import Flask, g, jsonify, redirect, render_template, request, session, url_for
+from werkzeug.security import check_password_hash, generate_password_hash
 
-from rental_core import RentalManager, ServiceError, Settings
+from rental_core import PLANS, RentalDatabase, RentalManager, RentalService, ServiceError, Settings
 from rental_core.rate_limit import SlidingWindowLimiter
 
 
+EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+
 app = Flask(__name__)
 settings = Settings.from_env()
+app.secret_key = settings.session_secret or settings.instance_key_secret or secrets.token_hex(32)
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=bool(os.environ.get("RENDER_SERVICE_ID")),
+    PERMANENT_SESSION_LIFETIME=timedelta(days=7),
+)
+
 manager = RentalManager(settings)
+database = RentalDatabase(settings.database_url)
+rentals = RentalService(settings, database, manager)
 create_limiter = SlidingWindowLimiter(settings.create_limit_per_hour, 3600)
-
-
-def instance_key():
-    return request.headers.get("X-Instance-Key", "").strip()
 
 
 def client_key():
@@ -22,9 +35,44 @@ def client_key():
     return forwarded or request.remote_addr or "unknown"
 
 
+def login_required(fn):
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        if not g.user:
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "ログインが必要です。"}), 401
+            return redirect(url_for("login_page", next=request.path))
+        return fn(*args, **kwargs)
+    return wrapped
+
+
+def csrf_token() -> str:
+    token = session.get("csrf_token")
+    if not token:
+        token = secrets.token_urlsafe(32)
+        session["csrf_token"] = token
+    return token
+
+
+def require_csrf():
+    supplied = request.headers.get("X-CSRF-Token", "")
+    if not supplied and request.form:
+        supplied = request.form.get("csrf_token", "")
+    if not supplied or not secrets.compare_digest(str(supplied), str(csrf_token())):
+        raise ServiceError("CSRF token is invalid", 403)
+
+
 @app.before_request
-def assign_request_id():
+def prepare_request():
     request.request_id = request.headers.get("X-Request-ID", "").strip() or uuid.uuid4().hex
+    user_id = session.get("user_id")
+    g.user = database.get_user(int(user_id)) if user_id else None
+    csrf_token()
+
+
+@app.context_processor
+def inject_global_context():
+    return {"current_user": g.user, "csrf_token": csrf_token()}
 
 
 @app.after_request
@@ -34,14 +82,20 @@ def add_response_headers(response):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+        "script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+    )
     return response
 
 
 @app.errorhandler(ServiceError)
 def handle_service_error(exc):
-    response = jsonify(exc.to_dict())
-    response.status_code = exc.status
-    return response
+    if request.path.startswith("/api/"):
+        response = jsonify(exc.to_dict())
+        response.status_code = exc.status
+        return response
+    return render_template("error.html", active_page="", message=exc.message), exc.status
 
 
 @app.errorhandler(404)
@@ -52,7 +106,7 @@ def handle_not_found(_exc):
 
 
 # -----------------------------
-# Web pages
+# Public pages / accounts
 # -----------------------------
 @app.get("/")
 def index():
@@ -61,27 +115,121 @@ def index():
 
 @app.get("/plans")
 def plans_page():
-    return render_template("plans.html", active_page="plans")
+    return render_template("plans.html", active_page="plans", plans=PLANS)
+
+
+@app.route("/signup", methods=["GET", "POST"])
+def signup_page():
+    if g.user:
+        return redirect(url_for("dashboard_page"))
+    error = None
+    email = ""
+    if request.method == "POST":
+        require_csrf()
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        confirm = request.form.get("confirm_password", "")
+        if not EMAIL_RE.fullmatch(email):
+            error = "正しいメールアドレスを入力してください。"
+        elif len(password) < 8:
+            error = "パスワードは8文字以上にしてください。"
+        elif password != confirm:
+            error = "確認用パスワードが一致しません。"
+        elif database.get_user_by_email(email):
+            error = "このメールアドレスはすでに登録されています。"
+        else:
+            try:
+                user = database.create_user(email, generate_password_hash(password))
+            except Exception:
+                if database.get_user_by_email(email):
+                    error = "このメールアドレスはすでに登録されています。"
+                else:
+                    raise
+            else:
+                session.clear()
+                session["user_id"] = user["id"]
+                session["csrf_token"] = secrets.token_urlsafe(32)
+                session.permanent = True
+                return redirect(url_for("dashboard_page"))
+    return render_template("signup.html", active_page="signup", error=error, email=email)
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login_page():
+    if g.user:
+        return redirect(url_for("dashboard_page"))
+    error = None
+    email = ""
+    if request.method == "POST":
+        require_csrf()
+        email = request.form.get("email", "").strip().lower()
+        password = request.form.get("password", "")
+        user = database.get_user_by_email(email)
+        if not user or not check_password_hash(user["password_hash"], password):
+            error = "メールアドレスまたはパスワードが違います。"
+        else:
+            session.clear()
+            session["user_id"] = user["id"]
+            session["csrf_token"] = secrets.token_urlsafe(32)
+            session.permanent = True
+            target = request.args.get("next", "")
+            if not target.startswith("/") or target.startswith("//"):
+                target = url_for("dashboard_page")
+            return redirect(target)
+    return render_template("login.html", active_page="login", error=error, email=email)
+
+
+@app.post("/logout")
+@login_required
+def logout():
+    require_csrf()
+    session.clear()
+    return redirect(url_for("index"))
+
+
+# -----------------------------
+# Rental customer pages
+# -----------------------------
+@app.get("/dashboard")
+@login_required
+def dashboard_page():
+    contracts = rentals.list_contracts(g.user["id"])
+    return render_template("dashboard.html", active_page="dashboard", contracts=contracts)
 
 
 @app.get("/create")
+@login_required
 def create_page():
     return render_template("create.html", active_page="create")
 
 
 @app.get("/servers")
+@login_required
 def servers_page():
-    return render_template("servers.html", active_page="servers")
+    return redirect(url_for("dashboard_page"))
 
 
-@app.get("/servers/<name>")
-def server_detail_page(name):
-    return render_template("server_detail.html", active_page="servers", server_name=name)
+@app.get("/servers/<int:contract_id>")
+@login_required
+def server_detail_page(contract_id):
+    contract = rentals.require_contract(g.user["id"], contract_id)
+    return render_template(
+        "server_detail.html",
+        active_page="dashboard",
+        contract=rentals.serialize_contract(contract),
+    )
+
+
+@app.get("/billing")
+@login_required
+def billing_page():
+    contracts = rentals.list_contracts(g.user["id"])
+    return render_template("billing.html", active_page="billing", contracts=contracts)
 
 
 @app.get("/import")
 def import_page():
-    return render_template("import.html", active_page="import")
+    return redirect(url_for("dashboard_page") if g.user else url_for("login_page"))
 
 
 # -----------------------------
@@ -94,6 +242,7 @@ def health():
         "service": "rental-server-control",
         "provider": manager.provider_name,
         "provider_configured": manager.configured,
+        "database": "postgres" if database.is_postgres else "sqlite",
     })
 
 
@@ -103,11 +252,14 @@ def system_info():
         "service": "rental-server-control",
         "provider": manager.provider_name,
         "provider_configured": manager.configured,
+        "database": "postgres" if database.is_postgres else "sqlite",
         "create_limit_per_hour": settings.create_limit_per_hour,
         "features": {
-            "server_detail": True,
-            "management_keys": True,
-            "rate_limit": True,
+            "accounts": True,
+            "contracts": True,
+            "ownership": True,
+            "csrf": True,
+            "postgres": True,
             "render_provider": True,
             "runner_provider": True,
         },
@@ -120,45 +272,64 @@ def plans():
 
 
 # -----------------------------
-# Instance API
+# Contract API
 # -----------------------------
-@app.post("/api/instances")
-def create_instance():
-    allowed, retry_after = create_limiter.allow(client_key())
+@app.get("/api/contracts")
+@login_required
+def list_contracts():
+    return jsonify({"contracts": rentals.list_contracts(g.user["id"])})
+
+
+@app.post("/api/contracts")
+@login_required
+def create_contract():
+    require_csrf()
+    allowed, retry_after = create_limiter.allow(f"user:{g.user['id']}:{client_key()}")
     if not allowed:
         response = jsonify({
-            "error": "サーバー作成回数の上限に達しました。しばらく待ってから再試行してください。",
+            "error": "契約作成回数の上限に達しました。しばらく待ってから再試行してください。",
             "retry_after": retry_after,
         })
         response.status_code = 429
         response.headers["Retry-After"] = str(retry_after)
         return response
     data = request.get_json(silent=True) or {}
-    return jsonify(manager.create(data)), 201
+    contract = rentals.create_contract(g.user["id"], data)
+    return jsonify({"contract": contract}), 201
 
 
-@app.get("/api/instances/<name>")
-def get_instance(name):
-    return jsonify(manager.get(name, instance_key()))
+@app.get("/api/contracts/<int:contract_id>")
+@login_required
+def get_contract(contract_id):
+    return jsonify(rentals.instance_for_contract(g.user["id"], contract_id))
 
 
-@app.post("/api/instances/<name>/<action>")
-def instance_action(name, action):
-    return jsonify(manager.action(name, action, instance_key()))
+@app.post("/api/contracts/<int:contract_id>/<action>")
+@login_required
+def contract_action(contract_id, action):
+    require_csrf()
+    if action not in {"start", "stop", "restart"}:
+        raise ServiceError("unsupported action", 400)
+    return jsonify(rentals.action(g.user["id"], contract_id, action))
 
 
-@app.delete("/api/instances/<name>")
-def delete_instance(name):
-    return jsonify(manager.delete(name, instance_key()))
+@app.post("/api/contracts/<int:contract_id>/cancel")
+@login_required
+def cancel_contract(contract_id):
+    require_csrf()
+    return jsonify({"contract": rentals.cancel(g.user["id"], contract_id)})
 
 
-@app.get("/s/<name>")
-def open_instance(name):
-    url = manager.public_url(name)
+@app.get("/s/<int:contract_id>")
+@login_required
+def open_instance(contract_id):
+    payload = rentals.instance_for_contract(g.user["id"], contract_id)
+    instance = payload.get("instance") or {}
+    url = instance.get("url") or payload["contract"].get("public_url")
     if not url:
-        raise ServiceError("service URL is not available", 404)
+        raise ServiceError("公開URLはまだ準備中です。", 404)
     return redirect(url, code=302)
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", "8080")))
+    app.run(host=settings.app_host, port=settings.app_port)
