@@ -1,4 +1,3 @@
-import secrets
 from urllib.parse import quote
 
 import requests
@@ -17,7 +16,7 @@ class RunnerProvider:
 
     @property
     def configured(self):
-        return bool(self.settings.runner_url and self.settings.runner_token)
+        return bool(self.settings.runner_url and self.settings.runner_token and self.settings.instance_key_secret)
 
     def _request(self, method, path, instance_key=None, **kwargs):
         headers = kwargs.pop("headers", {})
@@ -43,9 +42,10 @@ class RunnerProvider:
         return payload
 
     def create(self, data):
-        manage_key = secrets.token_urlsafe(32)
+        name = str(data.get("name", "")).strip().lower()
+        manage_key = management_key(self.settings.instance_key_secret, name)
         payload = {
-            "name": data.get("name", ""),
+            "name": name,
             "template": data.get("template", "python-web"),
             "plan": data.get("plan", "free"),
             "manage_key": manage_key,
@@ -63,11 +63,14 @@ class RunnerProvider:
     def delete(self, name, key):
         return self._request("DELETE", f"/instances/{quote(name, safe='')}", instance_key=key)
 
-    def logs(self, name, key):
-        return self._request("GET", f"/instances/{quote(name, safe='')}/logs", instance_key=key)
-
     def public_url(self, name):
-        return None
+        try:
+            result = self.get(name, management_key(self.settings.instance_key_secret, name))
+        except ServiceError:
+            return None
+        instance = result.get("instance", {})
+        port = instance.get("host_port")
+        return f"http://127.0.0.1:{port}" if port else None
 
 
 class RenderProvider:
@@ -80,11 +83,11 @@ class RenderProvider:
 
     @property
     def configured(self):
-        return bool(self.settings.render_api_key and self.settings.render_owner_id)
+        return bool(self.settings.render_api_key and self.settings.render_owner_id and self.settings.instance_key_secret)
 
     @property
     def key_secret(self):
-        return self.settings.instance_key_secret or self.settings.render_api_key
+        return self.settings.instance_key_secret
 
     def _headers(self):
         return {
@@ -242,14 +245,14 @@ class RenderProvider:
         template = str(data.get("template", "python-web"))
         plan_id = str(data.get("plan", "free"))
         if not validate_name(name):
-            raise ServiceError("name must be 3-32 chars: a-z, 0-9, hyphen", 400)
+            raise ServiceError("name must be 1-32 chars: a-z, 0-9, hyphen", 400)
         if template not in TEMPLATE_CODE:
             raise ServiceError("unknown template", 400)
         if plan_id not in PLANS:
             raise ServiceError("unknown plan", 400)
         if plan_id != "free" and not self.settings.allow_paid_render_plans:
             raise ServiceError(
-                "有料プランの自動作成はまだ無効です。決済確認なしでRenderの有料サービスを作成すると運営側に課金されるため、現在は500MB無料プランのみ自動作成できます。",
+                "有料プランの実サーバー発行は決済確認後のみ可能です。",
                 402,
             )
         if self._find(name, required=False):
@@ -301,18 +304,6 @@ class RenderProvider:
         service = self._find(name)
         self._request("DELETE", f"/services/{quote(str(service.get('id', '')), safe='')}")
         return {"ok": True}
-
-    def logs(self, name, key):
-        if not verify_management_key(self.key_secret, name, key):
-            raise ServiceError("invalid management key", 403)
-        service = self._find(name)
-        return {
-            "logs": (
-                "Render APIモードでは、この画面のログ取得はまだ簡易表示です。\n"
-                f"Service ID: {service.get('id', '-')}\n"
-                "実ログはRender DashboardのLogsから確認できます。"
-            )
-        }
 
     def public_url(self, name):
         service = self._find(name)
