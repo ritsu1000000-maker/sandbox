@@ -58,7 +58,10 @@ function initCreatePage(){
   selectPlan(current);
   form.addEventListener('submit',async e=>{
     e.preventDefault();
-    const name=$('#name').value.trim().toLowerCase();
+    const raw=$('#name').value.trim().toLowerCase();
+    const name=raw.replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'').replace(/-+/g,'-').replace(/^-|-$/g,'').slice(0,32);
+    $('#name').value=name;
+    if(!name){message('サーバー名を入力してください。英数字とハイフンが使えます。');return}
     try{
       const data=await api('/api/instances',{method:'POST',body:JSON.stringify({name,template:$('#template').value,plan:planInput.value})});
       remember(data.instance.name,data.manage_key);message('サーバーを作成しました。管理画面へ移動します。',true);setTimeout(()=>location.href=`/servers/${encodeURIComponent(data.instance.name)}`,700);
@@ -93,7 +96,6 @@ async function loadServers(){
 }
 async function serverAction(name,action){try{await api(`/api/instances/${encodeURIComponent(name)}/${action}`,{method:'POST',headers:{'X-Instance-Key':keyFor(name)}});await loadServers();await loadServerDetail()}catch(err){alert(err.message)}}
 async function removeServer(name){if(!confirm(`${name} を削除しますか？`))return;try{await api(`/api/instances/${encodeURIComponent(name)}`,{method:'DELETE',headers:{'X-Instance-Key':keyFor(name)}});forget(name);await loadServers()}catch(err){alert(err.message)}}
-async function showLogs(name){try{const d=await api(`/api/instances/${encodeURIComponent(name)}/logs`,{headers:{'X-Instance-Key':keyFor(name)}});const el=document.getElementById(`logs-${name}`);if(el){el.style.display='block';el.textContent=d.logs||'(no logs)'}}catch(err){alert(err.message)}}
 function forgetServer(name){forget(name);loadServers()}
 
 async function loadServerDetail(){
@@ -128,15 +130,12 @@ async function loadServerDetail(){
         <aside class="detail-panel">
           <span class="detail-kicker">MANAGEMENT</span><h3>管理</h3>
           <p class="detail-help">管理操作には、このブラウザに保存されたサーバー専用キーを使用します。</p>
-          <button class="wide-action" onclick="detailLogs('${esc(i.name)}')">ログを読み込む</button>
           <button class="wide-action danger-action" onclick="detailDelete('${esc(i.name)}')">サーバーを削除</button>
         </aside>
-      </div>
-      <section class="detail-panel detail-logs-panel"><div class="detail-title-row"><div><span class="detail-kicker">LOGS</span><h3>ログ</h3></div><button class="small-refresh" onclick="detailLogs('${esc(i.name)}')">更新</button></div><pre id="detailLogs" class="detail-logs">「ログを読み込む」を押すと表示されます。</pre></section>`;
+      </div>`;
   }catch(err){root.innerHTML=`<div class="empty">読み込みに失敗しました。<br>${esc(err.message)}</div>`}
 }
 async function detailAction(name,action){try{await api(`/api/instances/${encodeURIComponent(name)}/${action}`,{method:'POST',headers:{'X-Instance-Key':keyFor(name)}});await loadServerDetail()}catch(err){alert(err.message)}}
-async function detailLogs(name){try{const d=await api(`/api/instances/${encodeURIComponent(name)}/logs`,{headers:{'X-Instance-Key':keyFor(name)}});const el=$('#detailLogs');if(el)el.textContent=d.logs||'(no logs)'}catch(err){alert(err.message)}}
 async function detailDelete(name){if(!confirm(`${name} を完全に削除しますか？`))return;try{await api(`/api/instances/${encodeURIComponent(name)}`,{method:'DELETE',headers:{'X-Instance-Key':keyFor(name)}});forget(name);location.href='/servers'}catch(err){alert(err.message)}}
 
 function initImportPage(){
