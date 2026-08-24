@@ -11,7 +11,7 @@ const TEMPLATE_META={
   'nginx':{name:'Nginx',short:'NX',desc:'静的サイト・配信向け'}
 };
 const $=s=>document.querySelector(s);
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[c]));
 const csrf=()=>document.querySelector('meta[name="csrf-token"]')?.content||'';
 function yen(v){return `¥${Number(v||0).toLocaleString('ja-JP')}`}
 function message(text,ok=false){const el=$('#message');if(!el)return;el.textContent=text;el.className='msg '+(ok?'ok':'err');window.clearTimeout(el._timer);el._timer=setTimeout(()=>el.className='msg',6000)}
@@ -72,6 +72,9 @@ function initCreatePage(){
       if(c.status==='pending_payment'){
         message('契約を作成しました。支払い確認待ちです。',true);
         setTimeout(()=>location.href='/billing',650);
+      }else if(c.status==='capacity_waiting'){
+        message('契約を作成しました。現在Renderの空き枠待ちです。',true);
+        setTimeout(()=>location.href=`/servers/${c.id}`,650);
       }else{
         message('契約とサーバー発行が完了しました。',true);
         setTimeout(()=>location.href=`/servers/${c.id}`,650);
@@ -90,6 +93,9 @@ async function loadContractDetail(){
     const serverStatus=i.status||(c.status==='active'?'準備中':c.status);
     if(c.status==='pending_payment'){
       root.innerHTML=`<div class="detail-panel"><span class="detail-kicker">PAYMENT REQUIRED</span><h2>${esc(c.name)}</h2><p class="detail-help">この契約は支払い確認待ちです。決済が確認されるまで実サーバーは発行されません。</p><a class="button button-primary" href="/billing">契約・請求を確認</a></div>`;return;
+    }
+    if(c.status==='capacity_waiting'){
+      root.innerHTML=`<div class="detail-panel"><span class="detail-kicker">CAPACITY WAITING</span><h2>${esc(c.name)}</h2><p class="detail-help">契約は保存されていますが、現在のRender WorkspaceがHobby Tierのサービス上限に達しているため、実サーバーは空き枠待ちです。</p><a class="button button-outline" href="/dashboard">ダッシュボードへ</a></div>`;return;
     }
     if(c.status==='canceled'){
       root.innerHTML=`<div class="detail-panel"><span class="detail-kicker">CANCELED</span><h2>${esc(c.name)}</h2><p class="detail-help">この契約は解約済みです。</p><a class="button button-outline" href="/dashboard">ダッシュボードへ</a></div>`;return;
