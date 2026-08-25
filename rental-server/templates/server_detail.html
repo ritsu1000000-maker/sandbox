@@ -1,26 +1,26 @@
 {% extends "base.html" %}
-{% block title %}{{ contract.name }}｜サーバー管理｜Rental Server{% endblock %}
+{% block title %}{{ contract.name }}｜サービス管理｜Hosting Service{% endblock %}
 {% block content %}
 <section class="page-hero">
   <div class="container">
-    <span class="page-label">CONTRACT #{{ contract.id }}</span>
+    <span class="page-label">SERVICE #{{ contract.id }}</span>
     <h1>{{ contract.name }}</h1>
-    <p>契約に紐づいたサーバーを管理します。契約者本人だけが操作できます。</p>
+    <p>ホスティング環境の状態、公開URL、実行環境、プランを管理します。</p>
   </div>
 </section>
 <section class="section">
   <div class="container">
     <div id="serverDetail" class="detail-shell" data-contract-id="{{ contract.id }}">
-      <div class="detail-loading">契約とサーバー情報を読み込んでいます…</div>
+      <div class="detail-loading">サービス情報を読み込んでいます…</div>
     </div>
   </div>
 </section>
 <section class="section section-alt">
   <div class="container">
     <div class="info-strip">
-      <article class="content-card"><h3>ダッシュボードへ</h3><p>ほかの契約中サーバーを確認します。</p><p style="margin-top:14px"><a class="button button-outline" href="/dashboard">ダッシュボード</a></p></article>
-      <article class="content-card"><h3>新しい契約</h3><p>別用途のサーバーを追加できます。</p><p style="margin-top:14px"><a class="button button-outline" href="/create">新規契約へ</a></p></article>
-      <article class="content-card"><h3>契約・請求</h3><p>月額と次回更新日を確認できます。</p><p style="margin-top:14px"><a class="button button-outline" href="/billing">契約・請求へ</a></p></article>
+      <article class="content-card"><h3>ダッシュボードへ</h3><p>ほかのホスティングサービスを確認します。</p><p style="margin-top:14px"><a class="button button-outline" href="/dashboard">ダッシュボード</a></p></article>
+      <article class="content-card"><h3>新しいサービス</h3><p>別用途のホスティング環境を追加できます。</p><p style="margin-top:14px"><a class="button button-outline" href="/create">新規サービスへ</a></p></article>
+      <article class="content-card"><h3>プラン・請求</h3><p>月額と次回更新予定を確認できます。</p><p style="margin-top:14px"><a class="button button-outline" href="/billing">プラン・請求へ</a></p></article>
     </div>
   </div>
 </section>
