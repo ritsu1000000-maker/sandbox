@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}新規登録｜Rental Server{% endblock %}
+{% block title %}新規登録｜Hosting Service{% endblock %}
 {% block content %}
 <section class="auth-section">
   <div class="auth-card">
-    <span class="page-label">CREATE ACCOUNT</span>
+    <span class="page-label">CREATE HOSTING ACCOUNT</span>
     <h1>新規登録</h1>
-    <p>契約とサーバーをあなたのアカウントに紐づけます。</p>
+    <p>作成したホスティングサービスをあなたのアカウントに紐づけます。</p>
     {% if error %}<div class="form-alert">{{ error }}</div>{% endif %}
     <form method="post" class="auth-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
