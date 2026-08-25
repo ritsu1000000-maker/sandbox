@@ -54,7 +54,7 @@
       <thead><tr><th>User ID</th><th>メールアドレス</th><th>サービス数</th><th>登録日時</th></tr></thead>
       <tbody>
       {% for u in users %}
-        <tr><td>#{{ u.id }}</td><td class="admin-email">{{ u.email }}{% if u.email|lower in current_user.email|lower %}<span class="admin-badge">YOU</span>{% endif %}</td><td>{{ u.service_count }}</td><td>{{ u.created_at }}</td></tr>
+        <tr><td>#{{ u.id }}</td><td class="admin-email">{{ u.email }}{% if u.email == current_user.email %}<span class="admin-badge">YOU</span>{% endif %}</td><td>{{ u.service_count }}</td><td>{{ u.created_at }}</td></tr>
       {% else %}<tr><td colspan="4">ユーザーはいません。</td></tr>{% endfor %}
       </tbody>
     </table></div>
