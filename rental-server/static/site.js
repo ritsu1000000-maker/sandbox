@@ -72,11 +72,8 @@ function initCreatePage(){
       if(c.status==='pending_payment'){
         message('サービス設定を保存しました。支払い確認待ちです。',true);
         setTimeout(()=>location.href='/billing',650);
-      }else if(c.status==='capacity_waiting'){
-        message('サービスを登録しました。現在ホスティング容量の空き待ちです。',true);
-        setTimeout(()=>location.href=`/servers/${c.id}`,650);
       }else{
-        message('ホスティングサービスを作成しました。',true);
+        message(c.provider==='shared'?'共有ホスティングでサービスを公開しました。':'ホスティングサービスを作成しました。',true);
         setTimeout(()=>location.href=`/servers/${c.id}`,650);
       }
     }catch(err){message(err.message)}finally{button.disabled=false;button.textContent='この内容で作成'}
@@ -95,15 +92,19 @@ async function loadContractDetail(){
       root.innerHTML=`<div class="detail-panel"><span class="detail-kicker">PAYMENT REQUIRED</span><h2>${esc(c.name)}</h2><p class="detail-help">このサービスは支払い確認待ちです。決済が確認されるまでホスティング環境は発行されません。</p><a class="button button-primary" href="/billing">プラン・請求を確認</a></div>`;return;
     }
     if(c.status==='capacity_waiting'){
-      root.innerHTML=`<div class="detail-panel"><span class="detail-kicker">CAPACITY WAITING</span><h2>${esc(c.name)}</h2><p class="detail-help">サービス設定は保存されていますが、現在のRender WorkspaceがHobby Tierのサービス上限に達しているため、ホスティング環境は空き待ちです。</p><a class="button button-outline" href="/dashboard">ダッシュボードへ</a></div>`;return;
+      root.innerHTML=`<div class="detail-panel"><span class="detail-kicker">MIGRATING</span><h2>${esc(c.name)}</h2><p class="detail-help">共有ホスティングへ切り替えています。ページを再読み込みしてください。</p><button class="button button-primary" onclick="location.reload()">再読み込み</button></div>`;return;
     }
     if(c.status==='canceled'){
       root.innerHTML=`<div class="detail-panel"><span class="detail-kicker">INACTIVE</span><h2>${esc(c.name)}</h2><p class="detail-help">このサービスは利用終了済みです。</p><a class="button button-outline" href="/dashboard">ダッシュボードへ</a></div>`;return;
     }
+    const isShared=c.provider==='shared';
+    const isStopped=c.status==='stopped';
+    const controls=(c.status==='active'||isStopped)?`<div class="detail-actions">${isStopped?`<button class="button button-primary" onclick="contractAction(${Number(c.id)},'start')">Start</button>`:`<button class="button button-outline" onclick="contractAction(${Number(c.id)},'stop')">Stop</button><button class="button button-outline" onclick="contractAction(${Number(c.id)},'restart')">Restart</button>`}${directUrl?`<a class="button button-outline" href="${esc(directUrl)}" target="_blank" rel="noopener">サイトを開く</a>`:''}</div>`:'';
     root.innerHTML=`
       <div class="detail-grid">
         <section class="detail-panel detail-main">
           <div class="detail-title-row"><div><span class="detail-kicker">SERVICE #${esc(c.id)}</span><h2>${esc(c.name)}</h2></div><span class="tag status-${esc(i.status||c.status)}">${esc(serverStatus)}</span></div>
+          ${isShared?`<p class="detail-help">Renderの個別サービス枠を使わない共有ホスティングで稼働しています。</p>`:''}
           <div class="detail-stat-grid">
             <div class="detail-stat"><span>プラン</span><strong>${esc(c.plan_name||meta.name)}</strong><small>${esc(yen(c.price_yen))} / 月</small></div>
             <div class="detail-stat"><span>実行環境</span><strong>${esc(runtime)}</strong><small>${esc(c.provider||'-')}</small></div>
@@ -117,7 +118,7 @@ async function loadContractDetail(){
             <div><span>Region</span><strong>${esc(i.region||'-')}</strong></div>
             <div><span>Public URL</span>${directUrl?`<a href="${esc(directUrl)}" target="_blank" rel="noopener">${esc(directUrl)}</a>`:'<strong>準備中</strong>'}</div>
           </div>
-          ${c.status==='active'?`<div class="detail-actions"><button class="button button-primary" onclick="contractAction(${Number(c.id)},'start')">Start</button><button class="button button-outline" onclick="contractAction(${Number(c.id)},'stop')">Stop</button><button class="button button-outline" onclick="contractAction(${Number(c.id)},'restart')">Restart</button>${directUrl?`<a class="button button-outline" href="${esc(directUrl)}" target="_blank" rel="noopener">サイトを開く</a>`:''}</div>`:''}
+          ${controls}
         </section>
         <aside class="detail-panel"><span class="detail-kicker">HOSTING PLAN</span><h3>サービス管理</h3><p class="detail-help">操作権限はログイン中のアカウントで確認されます。</p><a class="wide-action" href="/billing">プラン・請求を見る</a><button class="wide-action danger-action" onclick="cancelContract(${Number(c.id)},'${esc(c.name)}')">サービス利用を終了</button></aside>
       </div>`;
