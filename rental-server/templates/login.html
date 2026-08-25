@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}ログイン｜Rental Server{% endblock %}
+{% block title %}ログイン｜Hosting Service{% endblock %}
 {% block content %}
 <section class="auth-section">
   <div class="auth-card">
-    <span class="page-label">CUSTOMER LOGIN</span>
+    <span class="page-label">HOSTING LOGIN</span>
     <h1>ログイン</h1>
-    <p>契約中のサーバーと請求情報を管理します。</p>
+    <p>ホスティングサービスとプラン・請求情報を管理します。</p>
     {% if error %}<div class="form-alert">{{ error }}</div>{% endif %}
     <form method="post" class="auth-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
