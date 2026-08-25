@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ contract.name }}｜コードエディタ｜Hosting Service{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='editor.css') }}">
+{% endblock %}
+{% block content %}
+<section class="editor-page" id="codeEditor" data-contract-id="{{ contract.id }}">
+  <header class="editor-topbar">
+    <div>
+      <span class="editor-kicker">SERVICE #{{ contract.id }}</span>
+      <h1>{{ contract.name }} <small>Code Editor</small></h1>
+    </div>
+    <div class="editor-top-actions">
+      <span id="editorStatus" class="editor-status">読み込み中…</span>
+      <a class="button button-outline" href="/servers/{{ contract.id }}">サービス管理</a>
+      <a class="button button-outline" href="/s/{{ contract.id }}" target="_blank" rel="noopener">公開サイト</a>
+      <button class="button button-primary" id="saveFile" type="button">保存</button>
+    </div>
+  </header>
+
+  <div class="editor-workspace">
+    <aside class="editor-sidebar">
+      <div class="editor-sidebar-head">
+        <strong>FILES</strong>
+        <button type="button" id="newFile" title="新しいファイル">＋</button>
+      </div>
+      <div id="fileList" class="editor-file-list"></div>
+      <div class="editor-sidebar-foot">
+        <button type="button" id="deleteFile" class="editor-delete">選択ファイルを削除</button>
+      </div>
+    </aside>
+
+    <section class="editor-main">
+      <div class="editor-tabbar">
+        <span id="currentFile">ファイルを選択</span>
+        <span id="fileMeta"></span>
+      </div>
+      <textarea id="sourceCode" class="source-code" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="ソースコード"></textarea>
+    </section>
+
+    <aside class="editor-preview-panel">
+      <div class="editor-preview-head">
+        <strong>PREVIEW</strong>
+        <button type="button" id="reloadPreview">更新</button>
+      </div>
+      <iframe id="sitePreview" title="ホスティングプレビュー" sandbox="allow-scripts allow-forms"></iframe>
+      <p class="editor-preview-note">共有ホスティングでは <code>index.html</code> が公開ページです。Python / Node.js のコードは保存できますが、共有プロセス内では直接実行しません。</p>
+    </aside>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='editor.js') }}"></script>
+{% endblock %}
