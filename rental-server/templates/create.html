@@ -2,9 +2,15 @@
 {% block title %}新規サービス｜Hosting Service{% endblock %}
 {% block head %}
 <style>
-.hosting-create-grid{align-items:start}
-.hosting-create-grid .create-btn{align-self:start;margin-top:27px}
-@media(max-width:1000px){.hosting-create-grid .create-btn{margin-top:0}}
+.hosting-form-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(320px,1fr) auto;gap:14px;align-items:start}
+.hosting-control{min-width:0}
+.hosting-control>label{display:block;font-size:12px;font-weight:800;margin:0 0 7px;color:#4d596a;height:20px;line-height:20px}
+.hosting-control input,.hosting-control .select-trigger{height:50px}
+.hosting-submit-wrap{padding-top:27px}
+.hosting-submit-wrap .create-btn{height:50px;min-width:174px;white-space:nowrap}
+.hosting-name-note{font-size:12px;color:#7b8797;margin:13px 0 0}
+@media(max-width:1000px){.hosting-form-layout{grid-template-columns:1fr 1fr}.hosting-submit-wrap{grid-column:1/-1;padding-top:0}.hosting-submit-wrap .create-btn{width:100%}}
+@media(max-width:640px){.hosting-form-layout{grid-template-columns:1fr}.hosting-submit-wrap{grid-column:auto}}
 </style>
 {% endblock %}
 {% block content %}
@@ -23,13 +29,13 @@
     <div class="application-box">
       <form id="createForm">
         <input type="hidden" id="plan" value="free">
-        <div class="form-grid hosting-create-grid">
-          <div class="field">
+        <div class="hosting-form-layout">
+          <div class="hosting-control">
             <label for="name">サービス名</label>
             <input id="name" placeholder="my-app" autocomplete="off" maxlength="32" pattern="[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?" title="1〜32文字の英小文字・数字・ハイフンを使用できます。" required>
-            <p class="small-note">1〜32文字。大文字は小文字、空白はハイフンに自動変換します。</p>
+            <p class="hosting-name-note">1〜32文字。大文字は小文字、空白はハイフンに自動変換します。</p>
           </div>
-          <div class="field">
+          <div class="hosting-control">
             <label>実行環境</label>
             <div class="custom-select" data-custom-select>
               <input type="hidden" id="template" value="python-web">
@@ -41,7 +47,7 @@
               </div>
             </div>
           </div>
-          <button class="button button-primary create-btn" type="submit">この内容で作成</button>
+          <div class="hosting-submit-wrap"><button class="button button-primary create-btn" type="submit">この内容で作成</button></div>
         </div>
         <p class="small-note" id="selectedPlanText"></p>
         <p class="small-note">有料プランは決済確認が完了するまでホスティング環境を発行しません。</p>
