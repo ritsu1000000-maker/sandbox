@@ -36,6 +36,13 @@ def client_key():
     return forwarded or request.remote_addr or "unknown"
 
 
+def is_admin_user(user) -> bool:
+    if not user:
+        return False
+    email = str(user.get("email", "")).strip().lower()
+    return bool(email and email in settings.admin_emails)
+
+
 def login_required(fn):
     @wraps(fn)
     def wrapped(*args, **kwargs):
@@ -43,6 +50,19 @@ def login_required(fn):
             if request.path.startswith("/api/"):
                 return jsonify({"error": "ログインが必要です。"}), 401
             return redirect(url_for("login_page", next=request.path))
+        return fn(*args, **kwargs)
+    return wrapped
+
+
+def admin_required(fn):
+    @wraps(fn)
+    def wrapped(*args, **kwargs):
+        if not g.user:
+            if request.path.startswith("/api/"):
+                return jsonify({"error": "ログインが必要です。"}), 401
+            return redirect(url_for("login_page", next=request.path))
+        if not is_admin_user(g.user):
+            raise ServiceError("Admin権限が必要です。", 403)
         return fn(*args, **kwargs)
     return wrapped
 
@@ -73,7 +93,11 @@ def prepare_request():
 
 @app.context_processor
 def inject_global_context():
-    return {"current_user": g.user, "csrf_token": csrf_token()}
+    return {
+        "current_user": g.user,
+        "current_is_admin": is_admin_user(g.user),
+        "csrf_token": csrf_token(),
+    }
 
 
 @app.after_request
@@ -272,6 +296,52 @@ def import_page():
 
 
 # -----------------------------
+# Admin dashboard
+# -----------------------------
+@app.get("/admin")
+@admin_required
+def admin_page():
+    users = database.list_users_admin()
+    service_rows = database.list_leases_admin()
+    services = []
+    for row in service_rows:
+        item = rentals.serialize_contract(row)
+        item["owner_email"] = row.get("owner_email")
+        item["user_id"] = row.get("user_id")
+        services.append(item)
+    stats = {
+        "users": len(users),
+        "services": len(services),
+        "active": sum(1 for item in services if item.get("status") == "active"),
+        "shared": sum(1 for item in services if item.get("provider") == "shared"),
+    }
+    return render_template(
+        "admin.html",
+        active_page="admin",
+        users=users,
+        services=services,
+        stats=stats,
+    )
+
+
+@app.post("/api/admin/services/<int:contract_id>/<action>")
+@admin_required
+def admin_service_action(contract_id, action):
+    require_csrf()
+    lease = database.get_lease_admin(contract_id)
+    if not lease:
+        raise ServiceError("サービスが見つかりません。", 404)
+    owner_id = int(lease["user_id"])
+    if action in {"start", "stop", "restart"}:
+        return jsonify(rentals.action(owner_id, contract_id, action))
+    if action == "retry":
+        return jsonify({"contract": rentals.retry_provision(owner_id, contract_id)})
+    if action == "cancel":
+        return jsonify({"contract": rentals.cancel(owner_id, contract_id)})
+    raise ServiceError("unsupported admin action", 400)
+
+
+# -----------------------------
 # Health / system API
 # -----------------------------
 @app.get("/health")
@@ -282,6 +352,7 @@ def health():
         "provider": manager.provider_name,
         "provider_configured": manager.configured,
         "shared_fallback": True,
+        "admin_configured": bool(settings.admin_emails),
         "database": "postgres" if database.is_postgres else "sqlite",
     })
 
@@ -303,6 +374,7 @@ def system_info():
             "render_provider": True,
             "runner_provider": True,
             "shared_hosting_fallback": True,
+            "admin_dashboard": True,
         },
     })
 
