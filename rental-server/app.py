@@ -13,6 +13,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from rental_core import PLANS, RentalManager, RentalService, ServiceError, Settings, build_database
 from rental_core.project_files import ProjectFileError, ProjectFileStore
 from rental_core.rate_limit import SlidingWindowLimiter
+from rental_core.security import management_key
 
 
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
@@ -131,6 +132,25 @@ def _ensure_project_defaults(lease: dict) -> None:
         raise ServiceError(str(exc), 400) from exc
 
 
+def _project_snapshot(lease_id: int) -> list[dict]:
+    files = []
+    total = 0
+    for item in project_files.list_files(lease_id):
+        path = item.get("path", "")
+        try:
+            content = project_files.read_text(lease_id, path)
+        except ProjectFileError:
+            continue
+        if content is None:
+            continue
+        size = len(content.encode("utf-8"))
+        total += size
+        if total > 5 * 1024 * 1024:
+            raise ServiceError("ターミナル同期可能なプロジェクトサイズは5MBまでです。", 413)
+        files.append({"path": path, "content": content})
+    return files
+
+
 def _render_project_document(lease: dict, path: str = "index.html"):
     running = lease.get("status") == "active"
     if not running:
@@ -184,13 +204,8 @@ def _serve_project_asset(lease: dict, file_path: str):
 
     guessed, _ = mimetypes.guess_type(normalized)
     allowed = {
-        "text/css",
-        "text/plain",
-        "application/javascript",
-        "text/javascript",
-        "application/json",
-        "application/xml",
-        "text/xml",
+        "text/css", "text/plain", "application/javascript", "text/javascript",
+        "application/json", "application/xml", "text/xml",
     }
     content_type = guessed if guessed in allowed else "text/plain; charset=utf-8"
     response = make_response(content)
@@ -234,10 +249,9 @@ def add_response_headers(response):
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     if request.path.startswith("/host/") or _request_subdomain_resource():
         response.headers["Content-Security-Policy"] = (
-            "default-src 'self' https: data: blob:; "
-            "img-src * data: blob:; style-src 'self' 'unsafe-inline' https:; "
-            "script-src 'self' 'unsafe-inline' https:; connect-src https: http:; "
-            "frame-src 'self'; frame-ancestors *; base-uri 'none'"
+            "default-src 'self' https: data: blob:; img-src * data: blob:; "
+            "style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' https:; "
+            "connect-src https: http:; frame-src 'self'; frame-ancestors *; base-uri 'none'"
         )
     else:
         response.headers["Content-Security-Policy"] = (
@@ -380,11 +394,7 @@ def servers_page():
 @login_required
 def server_detail_page(contract_id):
     contract = rentals.require_contract(g.user["id"], contract_id)
-    return render_template(
-        "server_detail.html",
-        active_page="dashboard",
-        contract=rentals.serialize_contract(contract),
-    )
+    return render_template("server_detail.html", active_page="dashboard", contract=rentals.serialize_contract(contract))
 
 
 @app.get("/servers/<int:contract_id>/editor")
@@ -394,11 +404,7 @@ def editor_page(contract_id):
     if contract.get("status") == "canceled":
         raise ServiceError("利用終了済みサービスは編集できません。", 409)
     _ensure_project_defaults(contract)
-    return render_template(
-        "editor.html",
-        active_page="dashboard",
-        contract=rentals.serialize_contract(contract),
-    )
+    return render_template("editor.html", active_page="dashboard", contract=rentals.serialize_contract(contract))
 
 
 @app.get("/billing")
@@ -425,18 +431,11 @@ def admin_page():
         item["user_id"] = row.get("user_id")
         services.append(item)
     stats = {
-        "users": len(users),
-        "services": len(services),
+        "users": len(users), "services": len(services),
         "active": sum(1 for item in services if item.get("status") == "active"),
         "shared": sum(1 for item in services if item.get("provider") == "shared"),
     }
-    return render_template(
-        "admin.html",
-        active_page="admin",
-        users=users,
-        services=services,
-        stats=stats,
-    )
+    return render_template("admin.html", active_page="admin", users=users, services=services, stats=stats)
 
 
 @app.post("/api/admin/services/<int:contract_id>/<action>")
@@ -459,41 +458,29 @@ def admin_service_action(contract_id, action):
 @app.get("/health")
 def health():
     return jsonify({
-        "ok": True,
-        "service": "hosting-control",
-        "provider": manager.provider_name,
-        "provider_configured": manager.configured,
-        "shared_fallback": True,
+        "ok": True, "service": "hosting-control", "provider": manager.provider_name,
+        "provider_configured": manager.configured, "shared_fallback": True,
         "subdomain_hosting": bool(settings.hosting_base_domain),
         "hosting_base_domain": settings.hosting_base_domain or None,
         "admin_configured": bool(settings.admin_emails or BOOTSTRAP_ADMIN_EMAIL_SHA256),
-        "database": database_kind(),
-        "source_editor": True,
+        "database": database_kind(), "source_editor": True,
+        "project_terminal": manager.provider_name == "runner",
     })
 
 
 @app.get("/api/system")
 def system_info():
     return jsonify({
-        "service": "hosting-control",
-        "provider": manager.provider_name,
-        "provider_configured": manager.configured,
-        "database": database_kind(),
+        "service": "hosting-control", "provider": manager.provider_name,
+        "provider_configured": manager.configured, "database": database_kind(),
         "hosting_base_domain": settings.hosting_base_domain or None,
         "create_limit_per_hour": settings.create_limit_per_hour,
         "features": {
-            "accounts": True,
-            "contracts": True,
-            "ownership": True,
-            "csrf": True,
-            "redis": True,
-            "postgres": True,
-            "render_provider": True,
-            "runner_provider": True,
-            "shared_hosting_fallback": True,
-            "subdomain_hosting": bool(settings.hosting_base_domain),
-            "admin_dashboard": True,
-            "source_editor": True,
+            "accounts": True, "contracts": True, "ownership": True, "csrf": True,
+            "redis": True, "postgres": True, "render_provider": True, "runner_provider": True,
+            "shared_hosting_fallback": True, "subdomain_hosting": bool(settings.hosting_base_domain),
+            "admin_dashboard": True, "source_editor": True,
+            "project_terminal": manager.provider_name == "runner",
         },
     })
 
@@ -515,10 +502,7 @@ def create_contract():
     require_csrf()
     allowed, retry_after = create_limiter.allow(f"user:{g.user['id']}:{client_key()}")
     if not allowed:
-        response = jsonify({
-            "error": "サービス作成回数の上限に達しました。しばらく待ってから再試行してください。",
-            "retry_after": retry_after,
-        })
+        response = jsonify({"error": "サービス作成回数の上限に達しました。しばらく待ってから再試行してください。", "retry_after": retry_after})
         response.status_code = 429
         response.headers["Retry-After"] = str(retry_after)
         return response
@@ -580,6 +564,24 @@ def mutate_project_file(contract_id):
         return jsonify({"file": file_meta})
     except ProjectFileError as exc:
         raise ServiceError(str(exc), 400) from exc
+
+
+@app.post("/api/contracts/<int:contract_id>/exec")
+@login_required
+def exec_project_command(contract_id):
+    require_csrf()
+    lease = rentals.require_contract(g.user["id"], contract_id)
+    if lease.get("status") == "canceled":
+        raise ServiceError("利用終了済みサービスです。", 409)
+    if lease.get("provider") != "runner" or manager.provider_name != "runner":
+        raise ServiceError("実コマンドは隔離Docker Runnerで発行されたサービスのみ利用できます。", 409)
+    data = request.get_json(silent=True) or {}
+    command = str(data.get("command", "")).strip()
+    if not command or len(command) > 2000:
+        raise ServiceError("コマンドが正しくありません。", 400)
+    key = management_key(settings.instance_key_secret, lease["resource_name"])
+    result = manager.exec(lease["resource_name"], command, _project_snapshot(contract_id), key)
+    return jsonify(result)
 
 
 @app.post("/api/contracts/<int:contract_id>/<action>")
