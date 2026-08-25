@@ -60,6 +60,14 @@ class RunnerProvider:
     def action(self, name, action, key):
         return self._request("POST", f"/instances/{quote(name, safe='')}/{action}", instance_key=key)
 
+    def exec(self, name, command, files, key):
+        return self._request(
+            "POST",
+            f"/instances/{quote(name, safe='')}/exec",
+            instance_key=key,
+            json={"command": command, "files": files},
+        )
+
     def delete(self, name, key):
         return self._request("DELETE", f"/instances/{quote(name, safe='')}", instance_key=key)
 
@@ -297,6 +305,12 @@ class RenderProvider:
         endpoint = {"start": "resume", "stop": "suspend", "restart": "restart"}[action]
         self._request("POST", f"/services/{service_id}/{endpoint}")
         return {"instance": self._serialize(self._retrieve(service_id_raw))}
+
+    def exec(self, name, command, files, key):
+        raise ServiceError(
+            "このサービスはRender共有モードです。実コマンドは隔離Docker Runner接続時のみ利用できます。",
+            409,
+        )
 
     def delete(self, name, key):
         if not verify_management_key(self.key_secret, name, key):
