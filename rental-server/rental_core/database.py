@@ -144,6 +144,19 @@ class RentalDatabase:
             row = conn.execute(self._sql("SELECT * FROM users WHERE id=?"), (user_id,)).fetchone()
         return self._dict(row)
 
+    def list_users_admin(self) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT u.id, u.email, u.created_at, COUNT(l.id) AS service_count
+                FROM users u
+                LEFT JOIN leases l ON l.user_id = u.id AND l.status != 'canceled'
+                GROUP BY u.id, u.email, u.created_at
+                ORDER BY u.id DESC
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def create_lease(
         self,
         user_id: int,
@@ -185,11 +198,31 @@ class RentalDatabase:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def list_leases_admin(self) -> list[dict]:
+        with self.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT l.*, u.email AS owner_email
+                FROM leases l
+                JOIN users u ON u.id = l.user_id
+                ORDER BY l.id DESC
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
     def get_lease(self, user_id: int, lease_id: int) -> dict | None:
         with self.connect() as conn:
             row = conn.execute(
                 self._sql("SELECT * FROM leases WHERE id=? AND user_id=?"),
                 (lease_id, user_id),
+            ).fetchone()
+        return self._dict(row)
+
+    def get_lease_admin(self, lease_id: int) -> dict | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                self._sql("SELECT * FROM leases WHERE id=?"),
+                (lease_id,),
             ).fetchone()
         return self._dict(row)
 
