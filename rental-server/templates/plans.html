@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block title %}料金プラン｜Rental Server{% endblock %}
+{% block title %}料金プラン｜Hosting Service{% endblock %}
 {% block content %}
-<section class="page-hero"><div class="container"><span class="page-label">RENTAL PLANS</span><h1>料金プラン</h1><p>容量・性能・月額を比較して契約プランを選択してください。無料プランは即時利用、有料プランは決済確認後にサーバーを発行します。</p></div></section>
+<section class="page-hero"><div class="container"><span class="page-label">HOSTING PLANS</span><h1>料金プラン</h1><p>容量・性能・月額を比較してホスティングプランを選択してください。無料プランは即時利用、有料プランは決済確認後に環境を発行します。</p></div></section>
 <section class="section">
   <div class="container">
     <div class="plan-grid">
-      <article class="plan-card recommended"><div class="plan-name">500MB</div><span class="free-label">FREE</span><div class="price">¥0 <small>/ 月</small></div><div class="plan-spec">RAM 128MB<br>CPU 0.1<br>Storage 500MB</div><div class="plan-note">無料契約・即時発行</div><div class="plan-action"><a class="button button-primary" href="/create?plan=free">このプランを契約</a></div></article>
-      <article class="plan-card"><div class="plan-name">1GB</div><div class="price">¥500 <small>/ 月</small></div><div class="plan-spec">RAM 256MB<br>CPU 0.25<br>Storage 1GB</div><div class="plan-note">支払い確認後に発行</div><div class="plan-action"><a class="button button-primary" href="/create?plan=small">このプランを契約</a></div></article>
-      <article class="plan-card"><div class="plan-name">10GB</div><span class="recommended-label">STANDARD</span><div class="price">¥1,500 <small>/ 月</small></div><div class="plan-spec">RAM 512MB<br>CPU 0.5<br>Storage 10GB</div><div class="plan-note">支払い確認後に発行</div><div class="plan-action"><a class="button button-primary" href="/create?plan=medium">このプランを契約</a></div></article>
-      <article class="plan-card"><div class="plan-name">50GB</div><div class="price">¥2,000 <small>/ 月</small></div><div class="plan-spec">RAM 1GB<br>CPU 1.0<br>Storage 50GB</div><div class="plan-note">支払い確認後に発行</div><div class="plan-action"><a class="button button-primary" href="/create?plan=large">このプランを契約</a></div></article>
-      <article class="plan-card"><div class="plan-name">100GB</div><div class="price">¥4,000 <small>/ 月</small></div><div class="plan-spec">RAM 2GB<br>CPU 2.0<br>Storage 100GB</div><div class="plan-note">支払い確認後に発行</div><div class="plan-action"><a class="button button-primary" href="/create?plan=xlarge">このプランを契約</a></div></article>
+      <article class="plan-card recommended"><div class="plan-name">500MB</div><span class="free-label">FREE</span><div class="price">¥0 <small>/ 月</small></div><div class="plan-spec">RAM 128MB<br>CPU 0.1<br>Storage 500MB</div><div class="plan-note">無料・即時発行</div><div class="plan-action"><a class="button button-primary" href="/create?plan=free">このプランで始める</a></div></article>
+      <article class="plan-card"><div class="plan-name">1GB</div><div class="price">¥500 <small>/ 月</small></div><div class="plan-spec">RAM 256MB<br>CPU 0.25<br>Storage 1GB</div><div class="plan-note">支払い確認後に発行</div><div class="plan-action"><a class="button button-primary" href="/create?plan=small">このプランで始める</a></div></article>
+      <article class="plan-card"><div class="plan-name">10GB</div><span class="recommended-label">STANDARD</span><div class="price">¥1,500 <small>/ 月</small></div><div class="plan-spec">RAM 512MB<br>CPU 0.5<br>Storage 10GB</div><div class="plan-note">支払い確認後に発行</div><div class="plan-action"><a class="button button-primary" href="/create?plan=medium">このプランで始める</a></div></article>
+      <article class="plan-card"><div class="plan-name">50GB</div><div class="price">¥2,000 <small>/ 月</small></div><div class="plan-spec">RAM 1GB<br>CPU 1.0<br>Storage 50GB</div><div class="plan-note">支払い確認後に発行</div><div class="plan-action"><a class="button button-primary" href="/create?plan=large">このプランで始める</a></div></article>
+      <article class="plan-card"><div class="plan-name">100GB</div><div class="price">¥4,000 <small>/ 月</small></div><div class="plan-spec">RAM 2GB<br>CPU 2.0<br>Storage 100GB</div><div class="plan-note">支払い確認後に発行</div><div class="plan-action"><a class="button button-primary" href="/create?plan=xlarge">このプランで始める</a></div></article>
     </div>
   </div>
 </section>
-<section class="section section-alt"><div class="container"><div class="content-card"><h3>契約とサーバー発行</h3><p>契約情報と実サーバーは別管理です。無料プランは契約成立時に発行し、有料プランは決済済みであることを確認してから発行する設計です。</p></div></div></section>
+<section class="section section-alt"><div class="container"><div class="content-card"><h3>サービス発行について</h3><p>無料プランは作成時にホスティング環境を発行し、有料プランは決済済みであることを確認してから発行します。</p></div></div></section>
 {% endblock %}
