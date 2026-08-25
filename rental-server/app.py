@@ -13,6 +13,7 @@ from rental_core.rate_limit import SlidingWindowLimiter
 
 
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
+RESOURCE_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 
 app = Flask(__name__)
 settings = Settings.from_env()
@@ -188,7 +189,45 @@ def logout():
 
 
 # -----------------------------
-# Rental customer pages
+# Shared hosting public routes
+# -----------------------------
+def _shared_public_lease(resource_name: str):
+    if not RESOURCE_RE.fullmatch(resource_name):
+        raise ServiceError("service not found", 404)
+    lease = database.get_lease_by_resource_name(resource_name)
+    if not lease or lease.get("provider") != "shared" or lease.get("status") == "canceled":
+        raise ServiceError("service not found", 404)
+    return lease
+
+
+@app.get("/host/<resource_name>/")
+def shared_host(resource_name):
+    lease = _shared_public_lease(resource_name)
+    running = lease.get("status") == "active"
+    status_code = 200 if running else 503
+    return render_template(
+        "shared_host.html",
+        active_page="",
+        service=lease,
+        running=running,
+    ), status_code
+
+
+@app.get("/host/<resource_name>/health")
+def shared_host_health(resource_name):
+    lease = _shared_public_lease(resource_name)
+    running = lease.get("status") == "active"
+    return jsonify({
+        "ok": running,
+        "service": lease.get("display_name"),
+        "provider": "shared",
+        "runtime": lease.get("template"),
+        "status": "running" if running else "stopped",
+    }), 200 if running else 503
+
+
+# -----------------------------
+# Hosting customer pages
 # -----------------------------
 @app.get("/dashboard")
 @login_required
@@ -239,9 +278,10 @@ def import_page():
 def health():
     return jsonify({
         "ok": True,
-        "service": "rental-server-control",
+        "service": "hosting-control",
         "provider": manager.provider_name,
         "provider_configured": manager.configured,
+        "shared_fallback": True,
         "database": "postgres" if database.is_postgres else "sqlite",
     })
 
@@ -249,7 +289,7 @@ def health():
 @app.get("/api/system")
 def system_info():
     return jsonify({
-        "service": "rental-server-control",
+        "service": "hosting-control",
         "provider": manager.provider_name,
         "provider_configured": manager.configured,
         "database": "postgres" if database.is_postgres else "sqlite",
@@ -262,6 +302,7 @@ def system_info():
             "postgres": True,
             "render_provider": True,
             "runner_provider": True,
+            "shared_hosting_fallback": True,
         },
     })
 
@@ -272,7 +313,7 @@ def plans():
 
 
 # -----------------------------
-# Contract API
+# Hosting service API
 # -----------------------------
 @app.get("/api/contracts")
 @login_required
@@ -287,7 +328,7 @@ def create_contract():
     allowed, retry_after = create_limiter.allow(f"user:{g.user['id']}:{client_key()}")
     if not allowed:
         response = jsonify({
-            "error": "契約作成回数の上限に達しました。しばらく待ってから再試行してください。",
+            "error": "サービス作成回数の上限に達しました。しばらく待ってから再試行してください。",
             "retry_after": retry_after,
         })
         response.status_code = 429
