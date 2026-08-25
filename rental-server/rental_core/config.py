@@ -33,6 +33,18 @@ def _int_env(name: str, default: int, minimum: int = 1) -> int:
     return max(minimum, value)
 
 
+def _email_list_env(name: str) -> tuple[str, ...]:
+    raw = os.environ.get(name, "")
+    values = []
+    seen = set()
+    for item in raw.split(","):
+        email = item.strip().lower()
+        if email and email not in seen:
+            seen.add(email)
+            values.append(email)
+    return tuple(values)
+
+
 @dataclass(frozen=True)
 class Settings:
     backend_provider: str
@@ -52,6 +64,7 @@ class Settings:
     instance_key_secret: str
     session_secret: str
     database_url: str
+    admin_emails: tuple[str, ...]
     allow_paid_render_plans: bool
     create_limit_per_hour: int
     request_timeout_seconds: int
@@ -89,6 +102,7 @@ class Settings:
             instance_key_secret=os.environ.get("INSTANCE_KEY_SECRET", "").strip(),
             session_secret=os.environ.get("SESSION_SECRET", "").strip(),
             database_url=os.environ.get("DATABASE_URL", "").strip(),
+            admin_emails=_email_list_env("ADMIN_EMAILS"),
             allow_paid_render_plans=os.environ.get("ALLOW_PAID_RENDER_PLANS", "false").strip().lower() == "true",
             create_limit_per_hour=_int_env("CREATE_LIMIT_PER_HOUR", 10),
             request_timeout_seconds=_int_env("REQUEST_TIMEOUT_SECONDS", 30),
