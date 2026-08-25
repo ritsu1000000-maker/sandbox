@@ -45,6 +45,12 @@ def _email_list_env(name: str) -> tuple[str, ...]:
     return tuple(values)
 
 
+def _domain_env(name: str) -> str:
+    value = os.environ.get(name, "").strip().lower()
+    value = value.removeprefix("https://").removeprefix("http://")
+    return value.split("/", 1)[0].strip(".")
+
+
 @dataclass(frozen=True)
 class Settings:
     backend_provider: str
@@ -64,6 +70,8 @@ class Settings:
     instance_key_secret: str
     session_secret: str
     database_url: str
+    redis_url: str
+    hosting_base_domain: str
     admin_emails: tuple[str, ...]
     allow_paid_render_plans: bool
     create_limit_per_hour: int
@@ -102,6 +110,8 @@ class Settings:
             instance_key_secret=os.environ.get("INSTANCE_KEY_SECRET", "").strip(),
             session_secret=os.environ.get("SESSION_SECRET", "").strip(),
             database_url=os.environ.get("DATABASE_URL", "").strip(),
+            redis_url=os.environ.get("REDIS_URL", "").strip(),
+            hosting_base_domain=_domain_env("HOSTING_BASE_DOMAIN"),
             admin_emails=_email_list_env("ADMIN_EMAILS"),
             allow_paid_render_plans=os.environ.get("ALLOW_PAID_RENDER_PLANS", "false").strip().lower() == "true",
             create_limit_per_hour=_int_env("CREATE_LIMIT_PER_HOUR", 10),
