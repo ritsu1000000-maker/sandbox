@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='editor.css') }}">
 {% endblock %}
 {% block content %}
-<section class="editor-page" id="codeEditor" data-contract-id="{{ contract.id }}">
+<section class="editor-page" id="codeEditor" data-contract-id="{{ contract.id }}" data-provider="{{ contract.provider }}">
   <header class="editor-topbar">
     <div>
       <span class="editor-kicker">SERVICE #{{ contract.id }}</span>
@@ -22,7 +22,11 @@
     <aside class="editor-sidebar">
       <div class="editor-sidebar-head">
         <strong>FILES</strong>
-        <button type="button" id="newFile" title="新しいファイル">＋</button>
+        <div class="editor-file-tools">
+          <button type="button" id="importZip" title="ZIPを展開">ZIP</button>
+          <button type="button" id="newFile" title="新しいファイル">＋</button>
+        </div>
+        <input type="file" id="zipInput" accept=".zip,application/zip" hidden>
       </div>
       <div id="fileList" class="editor-file-list"></div>
       <div class="editor-sidebar-foot">
@@ -44,9 +48,23 @@
         <button type="button" id="reloadPreview">更新</button>
       </div>
       <iframe id="sitePreview" title="ホスティングプレビュー" sandbox="allow-scripts allow-forms"></iframe>
-      <p class="editor-preview-note">共有ホスティングでは <code>index.html</code> が公開ページです。Python / Node.js のコードは保存できますが、共有プロセス内では直接実行しません。</p>
+      <p class="editor-preview-note">共有ホスティングでは <code>index.html</code> が公開ページです。Python / Node.js の実コマンドは隔離Docker Runner接続時にPROJECT TERMINALから実行できます。</p>
     </aside>
   </div>
+
+  <section class="project-terminal" aria-label="Project terminal">
+    <div class="terminal-head">
+      <div><strong>PROJECT TERMINAL</strong><span>isolated container</span></div>
+      <button type="button" id="clearTerminal">Clear</button>
+    </div>
+    <pre id="terminalOutput" class="terminal-output">Hosting project terminal ready.\n</pre>
+    <form id="terminalForm" class="terminal-form">
+      <span class="terminal-prompt">$</span>
+      <input id="terminalCommand" type="text" autocomplete="off" spellcheck="false" placeholder="python --version / node --version / npm install / python app.py">
+      <button type="submit">Run</button>
+    </form>
+    <p class="terminal-note">実行可能: python, python3, node, npm, npx, pip, pip3, ls, pwd, cat, echo。1コマンド最大20秒。ホストOSのシェルには接続しません。</p>
+  </section>
 </section>
 {% endblock %}
 {% block scripts %}
