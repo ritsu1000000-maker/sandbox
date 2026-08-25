@@ -54,6 +54,11 @@ class RentalManager:
             raise ServiceError("management key required", 401)
         return self.provider.action(name, action, key)
 
+    def exec(self, name, command, files, key):
+        if not key:
+            raise ServiceError("management key required", 401)
+        return self.provider.exec(name, command, files, key)
+
     def delete(self, name, key):
         if not key:
             raise ServiceError("management key required", 401)
