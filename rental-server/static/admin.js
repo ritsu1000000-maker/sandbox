@@ -1,4 +1,4 @@
-async function adminServiceAction(id, action, danger = false) {
+async function runAdminServiceAction(id, action, danger = false) {
   if (danger && !confirm('このサービスの利用を終了しますか？')) return;
   const csrf = document.querySelector('meta[name="csrf-token"]')?.content || '';
   try {
@@ -17,4 +17,14 @@ async function adminServiceAction(id, action, danger = false) {
   }
 }
 
-window.adminServiceAction = adminServiceAction;
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('[data-admin-action]').forEach((button) => {
+    button.addEventListener('click', () => {
+      runAdminServiceAction(
+        Number(button.dataset.serviceId),
+        button.dataset.adminAction,
+        button.dataset.danger === 'true',
+      );
+    });
+  });
+});
