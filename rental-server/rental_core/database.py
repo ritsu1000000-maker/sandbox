@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import os
 import sqlite3
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 
 def utcnow() -> str:
@@ -78,6 +78,7 @@ class RentalDatabase:
                 )
                 """,
                 "CREATE INDEX IF NOT EXISTS idx_leases_user_id ON leases(user_id)",
+                "CREATE INDEX IF NOT EXISTS idx_leases_resource_name ON leases(resource_name)",
             ]
         else:
             statements = [
@@ -107,6 +108,7 @@ class RentalDatabase:
                 )
                 """,
                 "CREATE INDEX IF NOT EXISTS idx_leases_user_id ON leases(user_id)",
+                "CREATE INDEX IF NOT EXISTS idx_leases_resource_name ON leases(resource_name)",
             ]
         with self.connect() as conn:
             for statement in statements:
@@ -199,8 +201,16 @@ class RentalDatabase:
             ).fetchone()
         return self._dict(row)
 
+    def get_lease_by_resource_name(self, resource_name: str) -> dict | None:
+        with self.connect() as conn:
+            row = conn.execute(
+                self._sql("SELECT * FROM leases WHERE resource_name=?"),
+                (resource_name,),
+            ).fetchone()
+        return self._dict(row)
+
     def update_lease(self, lease_id: int, **fields: Any) -> None:
-        allowed = {"status", "public_url", "renews_at", "canceled_at"}
+        allowed = {"status", "provider", "public_url", "renews_at", "canceled_at"}
         updates = {key: value for key, value in fields.items() if key in allowed}
         if not updates:
             return
