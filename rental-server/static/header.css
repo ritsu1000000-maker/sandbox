@@ -1,0 +1,20 @@
+.site-header .container{width:min(1480px,calc(100% - 48px))}
+.header-inner{justify-content:flex-start;gap:22px;min-width:0}
+.site-header .brand{flex:0 0 auto;white-space:nowrap}
+.global-nav{flex:1 1 auto;justify-content:center;gap:clamp(14px,1.35vw,26px);min-width:0}
+.global-nav a{white-space:nowrap;word-break:keep-all;overflow-wrap:normal;flex:0 0 auto}
+.header-account{flex:0 0 auto;min-width:0;gap:10px;white-space:nowrap}
+.header-user{display:block;max-width:165px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.logout-form{flex:0 0 auto}
+.logout-form button{white-space:nowrap;word-break:keep-all;min-width:96px;height:44px;padding:0 16px}
+.admin-badge{flex:0 0 auto;white-space:nowrap}
+@media(max-width:1280px){
+  .global-nav{display:none}
+  .header-inner{justify-content:space-between}
+  .header-user{max-width:220px}
+}
+@media(max-width:640px){
+  .site-header .container{width:min(100% - 28px,1480px)}
+  .header-user{display:none}
+  .logout-form button{min-width:auto;height:40px;padding:0 12px}
+}
