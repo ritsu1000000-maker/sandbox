@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='site.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='detail.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='account.css') }}">
+  <style>.header-admin-badge{display:inline-flex;padding:3px 7px;border-radius:999px;background:#eaf3ff;color:#1768c4;font-size:10px;font-weight:900}</style>
   {% block head %}{% endblock %}
 </head>
 <body>
@@ -29,7 +30,7 @@
     </nav>
     <div class="header-account">
       {% if current_user %}
-        {% if current_is_admin %}<span class="admin-badge">ADMIN</span>{% endif %}
+        {% if current_is_admin %}<span class="header-admin-badge">ADMIN</span>{% endif %}
         <span class="header-user">{{ current_user.email }}</span>
         <form method="post" action="/logout" class="logout-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">ログアウト</button></form>
       {% else %}
