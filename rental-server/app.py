@@ -9,7 +9,7 @@ from functools import wraps
 from flask import Flask, g, jsonify, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from rental_core import PLANS, RentalDatabase, RentalManager, RentalService, ServiceError, Settings
+from rental_core import PLANS, RentalManager, RentalService, ServiceError, Settings, build_database
 from rental_core.rate_limit import SlidingWindowLimiter
 
 
@@ -28,9 +28,17 @@ app.config.update(
 )
 
 manager = RentalManager(settings)
-database = RentalDatabase(settings.database_url)
+database = build_database(settings)
 rentals = RentalService(settings, database, manager)
 create_limiter = SlidingWindowLimiter(settings.create_limit_per_hour, 3600)
+
+
+def database_kind() -> str:
+    if getattr(database, "is_redis", False):
+        return "redis"
+    if getattr(database, "is_postgres", False):
+        return "postgres"
+    return "sqlite"
 
 
 def client_key():
@@ -90,12 +98,65 @@ def require_csrf():
         raise ServiceError("CSRF token is invalid", 403)
 
 
+def _request_subdomain_resource() -> str | None:
+    base = settings.hosting_base_domain
+    if not base:
+        return None
+    host = request.host.split(":", 1)[0].strip().lower().rstrip(".")
+    suffix = f".{base}"
+    if not host.endswith(suffix):
+        return None
+    label = host[:-len(suffix)]
+    if "." in label or not RESOURCE_RE.fullmatch(label):
+        return None
+    return label
+
+
+def _shared_public_lease(resource_name: str):
+    if not RESOURCE_RE.fullmatch(resource_name):
+        raise ServiceError("service not found", 404)
+    lease = database.get_lease_by_resource_name(resource_name)
+    if not lease or lease.get("provider") != "shared" or lease.get("status") == "canceled":
+        raise ServiceError("service not found", 404)
+    return lease
+
+
+def _render_shared_service(lease):
+    running = lease.get("status") == "active"
+    return render_template(
+        "shared_host.html",
+        active_page="",
+        service=lease,
+        running=running,
+    ), 200 if running else 503
+
+
+def _shared_health_response(lease):
+    running = lease.get("status") == "active"
+    return jsonify({
+        "ok": running,
+        "service": lease.get("display_name"),
+        "provider": "shared",
+        "runtime": lease.get("template"),
+        "status": "running" if running else "stopped",
+    }), 200 if running else 503
+
+
 @app.before_request
 def prepare_request():
     request.request_id = request.headers.get("X-Request-ID", "").strip() or uuid.uuid4().hex
     user_id = session.get("user_id")
     g.user = database.get_user(int(user_id)) if user_id else None
     csrf_token()
+
+    resource_name = _request_subdomain_resource()
+    if resource_name:
+        lease = _shared_public_lease(resource_name)
+        if request.path == "/health":
+            return _shared_health_response(lease)
+        if request.path in {"", "/"}:
+            return _render_shared_service(lease)
+        raise ServiceError("service path not found", 404)
 
 
 @app.context_processor
@@ -198,7 +259,7 @@ def login_page():
         password = request.form.get("password", "")
         user = database.get_user_by_email(email)
         if not user or not check_password_hash(user["password_hash"], password):
-            error = "メールアドレスまたはパスワードが違います。"
+            error = "メールアドレスまたはパスワードが違います。未登録の場合は新規登録してください。"
         else:
             session.clear()
             session["user_id"] = user["id"]
@@ -222,39 +283,14 @@ def logout():
 # -----------------------------
 # Shared hosting public routes
 # -----------------------------
-def _shared_public_lease(resource_name: str):
-    if not RESOURCE_RE.fullmatch(resource_name):
-        raise ServiceError("service not found", 404)
-    lease = database.get_lease_by_resource_name(resource_name)
-    if not lease or lease.get("provider") != "shared" or lease.get("status") == "canceled":
-        raise ServiceError("service not found", 404)
-    return lease
-
-
 @app.get("/host/<resource_name>/")
 def shared_host(resource_name):
-    lease = _shared_public_lease(resource_name)
-    running = lease.get("status") == "active"
-    status_code = 200 if running else 503
-    return render_template(
-        "shared_host.html",
-        active_page="",
-        service=lease,
-        running=running,
-    ), status_code
+    return _render_shared_service(_shared_public_lease(resource_name))
 
 
 @app.get("/host/<resource_name>/health")
 def shared_host_health(resource_name):
-    lease = _shared_public_lease(resource_name)
-    running = lease.get("status") == "active"
-    return jsonify({
-        "ok": running,
-        "service": lease.get("display_name"),
-        "provider": "shared",
-        "runtime": lease.get("template"),
-        "status": "running" if running else "stopped",
-    }), 200 if running else 503
+    return _shared_health_response(_shared_public_lease(resource_name))
 
 
 # -----------------------------
@@ -359,8 +395,10 @@ def health():
         "provider": manager.provider_name,
         "provider_configured": manager.configured,
         "shared_fallback": True,
+        "subdomain_hosting": bool(settings.hosting_base_domain),
+        "hosting_base_domain": settings.hosting_base_domain or None,
         "admin_configured": bool(settings.admin_emails or BOOTSTRAP_ADMIN_EMAIL_SHA256),
-        "database": "postgres" if database.is_postgres else "sqlite",
+        "database": database_kind(),
     })
 
 
@@ -370,17 +408,20 @@ def system_info():
         "service": "hosting-control",
         "provider": manager.provider_name,
         "provider_configured": manager.configured,
-        "database": "postgres" if database.is_postgres else "sqlite",
+        "database": database_kind(),
+        "hosting_base_domain": settings.hosting_base_domain or None,
         "create_limit_per_hour": settings.create_limit_per_hour,
         "features": {
             "accounts": True,
             "contracts": True,
             "ownership": True,
             "csrf": True,
+            "redis": True,
             "postgres": True,
             "render_provider": True,
             "runner_provider": True,
             "shared_hosting_fallback": True,
+            "subdomain_hosting": bool(settings.hosting_base_domain),
             "admin_dashboard": True,
         },
     })
