@@ -1,4 +1,5 @@
 import hashlib
+import mimetypes
 import os
 import re
 import secrets
@@ -6,10 +7,11 @@ import uuid
 from datetime import timedelta
 from functools import wraps
 
-from flask import Flask, g, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, g, jsonify, make_response, redirect, render_template, request, session, url_for
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from rental_core import PLANS, RentalManager, RentalService, ServiceError, Settings, build_database
+from rental_core.project_files import ProjectFileError, ProjectFileStore
 from rental_core.rate_limit import SlidingWindowLimiter
 
 
@@ -30,6 +32,7 @@ app.config.update(
 manager = RentalManager(settings)
 database = build_database(settings)
 rentals = RentalService(settings, database, manager)
+project_files = ProjectFileStore(database)
 create_limiter = SlidingWindowLimiter(settings.create_limit_per_hour, 3600)
 
 
@@ -121,14 +124,36 @@ def _shared_public_lease(resource_name: str):
     return lease
 
 
-def _render_shared_service(lease):
+def _ensure_project_defaults(lease: dict) -> None:
+    try:
+        project_files.ensure_defaults(lease)
+    except ProjectFileError as exc:
+        raise ServiceError(str(exc), 400) from exc
+
+
+def _render_project_document(lease: dict, path: str = "index.html"):
     running = lease.get("status") == "active"
-    return render_template(
-        "shared_host.html",
-        active_page="",
-        service=lease,
-        running=running,
-    ), 200 if running else 503
+    if not running:
+        return render_template("shared_host.html", active_page="", service=lease, running=False), 503
+    _ensure_project_defaults(lease)
+    try:
+        document = project_files.read_text(int(lease["id"]), path)
+    except ProjectFileError as exc:
+        raise ServiceError(str(exc), 404) from exc
+    if document is None:
+        raise ServiceError("file not found", 404)
+    return render_template("shared_project.html", service=lease, document=document), 200
+
+
+def _render_shared_service(lease):
+    if lease.get("status") != "active":
+        return render_template("shared_host.html", active_page="", service=lease, running=False), 503
+    try:
+        return _render_project_document(lease, "index.html")
+    except ServiceError as exc:
+        if exc.status != 404:
+            raise
+        return render_template("shared_host.html", active_page="", service=lease, running=True), 200
 
 
 def _shared_health_response(lease):
@@ -140,6 +165,38 @@ def _shared_health_response(lease):
         "runtime": lease.get("template"),
         "status": "running" if running else "stopped",
     }), 200 if running else 503
+
+
+def _serve_project_asset(lease: dict, file_path: str):
+    if lease.get("status") != "active":
+        raise ServiceError("service stopped", 503)
+    _ensure_project_defaults(lease)
+    try:
+        content = project_files.read_text(int(lease["id"]), file_path)
+        normalized = project_files.normalize_path(file_path)
+    except ProjectFileError as exc:
+        raise ServiceError(str(exc), 404) from exc
+    if content is None:
+        raise ServiceError("file not found", 404)
+
+    if normalized.lower().endswith((".html", ".htm")):
+        return render_template("shared_project.html", service=lease, document=content), 200
+
+    guessed, _ = mimetypes.guess_type(normalized)
+    allowed = {
+        "text/css",
+        "text/plain",
+        "application/javascript",
+        "text/javascript",
+        "application/json",
+        "application/xml",
+        "text/xml",
+    }
+    content_type = guessed if guessed in allowed else "text/plain; charset=utf-8"
+    response = make_response(content)
+    response.headers["Content-Type"] = content_type
+    response.headers["Cache-Control"] = "no-cache"
+    return response
 
 
 @app.before_request
@@ -156,7 +213,7 @@ def prepare_request():
             return _shared_health_response(lease)
         if request.path in {"", "/"}:
             return _render_shared_service(lease)
-        raise ServiceError("service path not found", 404)
+        return _serve_project_asset(lease, request.path.lstrip("/"))
 
 
 @app.context_processor
@@ -175,10 +232,18 @@ def add_response_headers(response):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
-        "script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
-    )
+    if request.path.startswith("/host/") or _request_subdomain_resource():
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self' https: data: blob:; "
+            "img-src * data: blob:; style-src 'self' 'unsafe-inline' https:; "
+            "script-src 'self' 'unsafe-inline' https:; connect-src https: http:; "
+            "frame-src 'self'; frame-ancestors *; base-uri 'none'"
+        )
+    else:
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+            "script-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        )
     return response
 
 
@@ -198,9 +263,6 @@ def handle_not_found(_exc):
     return render_template("404.html", active_page=""), 404
 
 
-# -----------------------------
-# Public pages / accounts
-# -----------------------------
 @app.get("/")
 def index():
     return render_template("index.html", active_page="home")
@@ -280,9 +342,6 @@ def logout():
     return redirect(url_for("index"))
 
 
-# -----------------------------
-# Shared hosting public routes
-# -----------------------------
 @app.get("/host/<resource_name>/")
 def shared_host(resource_name):
     return _render_shared_service(_shared_public_lease(resource_name))
@@ -293,9 +352,11 @@ def shared_host_health(resource_name):
     return _shared_health_response(_shared_public_lease(resource_name))
 
 
-# -----------------------------
-# Hosting customer pages
-# -----------------------------
+@app.get("/host/<resource_name>/<path:file_path>")
+def shared_host_asset(resource_name, file_path):
+    return _serve_project_asset(_shared_public_lease(resource_name), file_path)
+
+
 @app.get("/dashboard")
 @login_required
 def dashboard_page():
@@ -326,6 +387,20 @@ def server_detail_page(contract_id):
     )
 
 
+@app.get("/servers/<int:contract_id>/editor")
+@login_required
+def editor_page(contract_id):
+    contract = rentals.require_contract(g.user["id"], contract_id)
+    if contract.get("status") == "canceled":
+        raise ServiceError("利用終了済みサービスは編集できません。", 409)
+    _ensure_project_defaults(contract)
+    return render_template(
+        "editor.html",
+        active_page="dashboard",
+        contract=rentals.serialize_contract(contract),
+    )
+
+
 @app.get("/billing")
 @login_required
 def billing_page():
@@ -338,9 +413,6 @@ def import_page():
     return redirect(url_for("dashboard_page") if g.user else url_for("login_page"))
 
 
-# -----------------------------
-# Admin dashboard
-# -----------------------------
 @app.get("/admin")
 @admin_required
 def admin_page():
@@ -384,9 +456,6 @@ def admin_service_action(contract_id, action):
     raise ServiceError("unsupported admin action", 400)
 
 
-# -----------------------------
-# Health / system API
-# -----------------------------
 @app.get("/health")
 def health():
     return jsonify({
@@ -399,6 +468,7 @@ def health():
         "hosting_base_domain": settings.hosting_base_domain or None,
         "admin_configured": bool(settings.admin_emails or BOOTSTRAP_ADMIN_EMAIL_SHA256),
         "database": database_kind(),
+        "source_editor": True,
     })
 
 
@@ -423,6 +493,7 @@ def system_info():
             "shared_hosting_fallback": True,
             "subdomain_hosting": bool(settings.hosting_base_domain),
             "admin_dashboard": True,
+            "source_editor": True,
         },
     })
 
@@ -432,9 +503,6 @@ def plans():
     return jsonify(manager.plans())
 
 
-# -----------------------------
-# Hosting service API
-# -----------------------------
 @app.get("/api/contracts")
 @login_required
 def list_contracts():
@@ -463,6 +531,55 @@ def create_contract():
 @login_required
 def get_contract(contract_id):
     return jsonify(rentals.instance_for_contract(g.user["id"], contract_id))
+
+
+@app.get("/api/contracts/<int:contract_id>/files")
+@login_required
+def list_project_files(contract_id):
+    lease = rentals.require_contract(g.user["id"], contract_id)
+    if lease.get("status") == "canceled":
+        raise ServiceError("利用終了済みサービスです。", 409)
+    _ensure_project_defaults(lease)
+    return jsonify({"files": project_files.list_files(contract_id)})
+
+
+@app.get("/api/contracts/<int:contract_id>/file")
+@login_required
+def read_project_file(contract_id):
+    lease = rentals.require_contract(g.user["id"], contract_id)
+    if lease.get("status") == "canceled":
+        raise ServiceError("利用終了済みサービスです。", 409)
+    _ensure_project_defaults(lease)
+    path = request.args.get("path", "")
+    try:
+        normalized = project_files.normalize_path(path)
+        content = project_files.read_text(contract_id, normalized)
+    except ProjectFileError as exc:
+        raise ServiceError(str(exc), 400) from exc
+    if content is None:
+        raise ServiceError("ファイルが見つかりません。", 404)
+    return jsonify({"path": normalized, "content": content})
+
+
+@app.route("/api/contracts/<int:contract_id>/file", methods=["PUT", "DELETE"])
+@login_required
+def mutate_project_file(contract_id):
+    require_csrf()
+    lease = rentals.require_contract(g.user["id"], contract_id)
+    if lease.get("status") == "canceled":
+        raise ServiceError("利用終了済みサービスは編集できません。", 409)
+    data = request.get_json(silent=True) or {}
+    path = str(data.get("path", ""))
+    try:
+        if request.method == "DELETE":
+            deleted = project_files.delete(contract_id, path)
+            if not deleted:
+                raise ServiceError("ファイルが見つかりません。", 404)
+            return jsonify({"deleted": True})
+        file_meta = project_files.write_text(contract_id, path, str(data.get("content", "")))
+        return jsonify({"file": file_meta})
+    except ProjectFileError as exc:
+        raise ServiceError(str(exc), 400) from exc
 
 
 @app.post("/api/contracts/<int:contract_id>/<action>")
