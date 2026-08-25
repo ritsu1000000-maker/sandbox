@@ -11,7 +11,7 @@ const TEMPLATE_META={
   'nginx':{name:'Nginx',short:'NX',desc:'静的サイト・配信向け'}
 };
 const $=s=>document.querySelector(s);
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[c]));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
 const csrf=()=>document.querySelector('meta[name="csrf-token"]')?.content||'';
 function yen(v){return `¥${Number(v||0).toLocaleString('ja-JP')}`}
 function message(text,ok=false){const el=$('#message');if(!el)return;el.textContent=text;el.className='msg '+(ok?'ok':'err');window.clearTimeout(el._timer);el._timer=setTimeout(()=>el.className='msg',6000)}
@@ -57,29 +57,29 @@ function initCreatePage(){
   const nameInput=$('#name');
   const requested=new URLSearchParams(location.search).get('plan');
   let current=PLAN_META[requested]?requested:'free';
-  function selectPlan(id){current=PLAN_META[id]?id:'free';planInput.value=current;choices.forEach(b=>b.classList.toggle('active',b.dataset.planChoice===current));const p=PLAN_META[current];selectedText.textContent=`選択中：${p.name} / ${yen(p.price)} 月 · RAM ${p.ram} · CPU ${p.cpu}${p.price?' · 支払い確認後に発行':' · 契約後すぐ発行'}`}
+  function selectPlan(id){current=PLAN_META[id]?id:'free';planInput.value=current;choices.forEach(b=>b.classList.toggle('active',b.dataset.planChoice===current));const p=PLAN_META[current];selectedText.textContent=`選択中：${p.name} / ${yen(p.price)} 月 · RAM ${p.ram} · CPU ${p.cpu}${p.price?' · 支払い確認後に発行':' · 作成後すぐ発行'}`}
   choices.forEach(b=>b.addEventListener('click',()=>selectPlan(b.dataset.planChoice)));
   nameInput?.addEventListener('blur',()=>{nameInput.value=normalizeName(nameInput.value)});
   selectPlan(current);
   form.addEventListener('submit',async e=>{
     e.preventDefault();
     const name=normalizeName(nameInput.value);nameInput.value=name;
-    if(!name){message('サーバー名を入力してください。');return}
-    const button=form.querySelector('button[type="submit"]');button.disabled=true;button.textContent='契約処理中…';
+    if(!name){message('サービス名を入力してください。');return}
+    const button=form.querySelector('button[type="submit"]');button.disabled=true;button.textContent='作成中…';
     try{
       const data=await api('/api/contracts',{method:'POST',body:JSON.stringify({name,template:$('#template').value,plan:planInput.value})});
       const c=data.contract;
       if(c.status==='pending_payment'){
-        message('契約を作成しました。支払い確認待ちです。',true);
+        message('サービス設定を保存しました。支払い確認待ちです。',true);
         setTimeout(()=>location.href='/billing',650);
       }else if(c.status==='capacity_waiting'){
-        message('契約を作成しました。現在Renderの空き枠待ちです。',true);
+        message('サービスを登録しました。現在ホスティング容量の空き待ちです。',true);
         setTimeout(()=>location.href=`/servers/${c.id}`,650);
       }else{
-        message('契約とサーバー発行が完了しました。',true);
+        message('ホスティングサービスを作成しました。',true);
         setTimeout(()=>location.href=`/servers/${c.id}`,650);
       }
-    }catch(err){message(err.message)}finally{button.disabled=false;button.textContent='この内容で契約'}
+    }catch(err){message(err.message)}finally{button.disabled=false;button.textContent='この内容で作成'}
   });
 }
 
@@ -92,26 +92,26 @@ async function loadContractDetail(){
     const directUrl=i.url||c.public_url||null;
     const serverStatus=i.status||(c.status==='active'?'準備中':c.status);
     if(c.status==='pending_payment'){
-      root.innerHTML=`<div class="detail-panel"><span class="detail-kicker">PAYMENT REQUIRED</span><h2>${esc(c.name)}</h2><p class="detail-help">この契約は支払い確認待ちです。決済が確認されるまで実サーバーは発行されません。</p><a class="button button-primary" href="/billing">契約・請求を確認</a></div>`;return;
+      root.innerHTML=`<div class="detail-panel"><span class="detail-kicker">PAYMENT REQUIRED</span><h2>${esc(c.name)}</h2><p class="detail-help">このサービスは支払い確認待ちです。決済が確認されるまでホスティング環境は発行されません。</p><a class="button button-primary" href="/billing">プラン・請求を確認</a></div>`;return;
     }
     if(c.status==='capacity_waiting'){
-      root.innerHTML=`<div class="detail-panel"><span class="detail-kicker">CAPACITY WAITING</span><h2>${esc(c.name)}</h2><p class="detail-help">契約は保存されていますが、現在のRender WorkspaceがHobby Tierのサービス上限に達しているため、実サーバーは空き枠待ちです。</p><a class="button button-outline" href="/dashboard">ダッシュボードへ</a></div>`;return;
+      root.innerHTML=`<div class="detail-panel"><span class="detail-kicker">CAPACITY WAITING</span><h2>${esc(c.name)}</h2><p class="detail-help">サービス設定は保存されていますが、現在のRender WorkspaceがHobby Tierのサービス上限に達しているため、ホスティング環境は空き待ちです。</p><a class="button button-outline" href="/dashboard">ダッシュボードへ</a></div>`;return;
     }
     if(c.status==='canceled'){
-      root.innerHTML=`<div class="detail-panel"><span class="detail-kicker">CANCELED</span><h2>${esc(c.name)}</h2><p class="detail-help">この契約は解約済みです。</p><a class="button button-outline" href="/dashboard">ダッシュボードへ</a></div>`;return;
+      root.innerHTML=`<div class="detail-panel"><span class="detail-kicker">INACTIVE</span><h2>${esc(c.name)}</h2><p class="detail-help">このサービスは利用終了済みです。</p><a class="button button-outline" href="/dashboard">ダッシュボードへ</a></div>`;return;
     }
     root.innerHTML=`
       <div class="detail-grid">
         <section class="detail-panel detail-main">
-          <div class="detail-title-row"><div><span class="detail-kicker">CONTRACT #${esc(c.id)}</span><h2>${esc(c.name)}</h2></div><span class="tag status-${esc(i.status||c.status)}">${esc(serverStatus)}</span></div>
+          <div class="detail-title-row"><div><span class="detail-kicker">SERVICE #${esc(c.id)}</span><h2>${esc(c.name)}</h2></div><span class="tag status-${esc(i.status||c.status)}">${esc(serverStatus)}</span></div>
           <div class="detail-stat-grid">
             <div class="detail-stat"><span>プラン</span><strong>${esc(c.plan_name||meta.name)}</strong><small>${esc(yen(c.price_yen))} / 月</small></div>
             <div class="detail-stat"><span>実行環境</span><strong>${esc(runtime)}</strong><small>${esc(c.provider||'-')}</small></div>
-            <div class="detail-stat"><span>RAM</span><strong>${esc(c.memory||meta.ram)}</strong><small>契約値</small></div>
-            <div class="detail-stat"><span>CPU</span><strong>${esc(c.cpu??meta.cpu)}</strong><small>契約値</small></div>
+            <div class="detail-stat"><span>RAM</span><strong>${esc(c.memory||meta.ram)}</strong><small>プラン値</small></div>
+            <div class="detail-stat"><span>CPU</span><strong>${esc(c.cpu??meta.cpu)}</strong><small>プラン値</small></div>
           </div>
           <div class="detail-meta-list">
-            <div><span>契約状態</span><strong>${esc(c.status)}</strong></div>
+            <div><span>サービス状態</span><strong>${esc(c.status)}</strong></div>
             <div><span>次回更新</span><strong>${esc(formatDate(c.renews_at))}</strong></div>
             <div><span>Service ID</span><code>${esc(i.container_id||'準備中')}</code></div>
             <div><span>Region</span><strong>${esc(i.region||'-')}</strong></div>
@@ -119,11 +119,11 @@ async function loadContractDetail(){
           </div>
           ${c.status==='active'?`<div class="detail-actions"><button class="button button-primary" onclick="contractAction(${Number(c.id)},'start')">Start</button><button class="button button-outline" onclick="contractAction(${Number(c.id)},'stop')">Stop</button><button class="button button-outline" onclick="contractAction(${Number(c.id)},'restart')">Restart</button>${directUrl?`<a class="button button-outline" href="${esc(directUrl)}" target="_blank" rel="noopener">サイトを開く</a>`:''}</div>`:''}
         </section>
-        <aside class="detail-panel"><span class="detail-kicker">RENTAL CONTRACT</span><h3>契約管理</h3><p class="detail-help">サーバー操作権限はログイン中の契約者アカウントで確認されます。</p><a class="wide-action" href="/billing">契約・請求を見る</a><button class="wide-action danger-action" onclick="cancelContract(${Number(c.id)},'${esc(c.name)}')">契約を解約</button></aside>
+        <aside class="detail-panel"><span class="detail-kicker">HOSTING PLAN</span><h3>サービス管理</h3><p class="detail-help">操作権限はログイン中のアカウントで確認されます。</p><a class="wide-action" href="/billing">プラン・請求を見る</a><button class="wide-action danger-action" onclick="cancelContract(${Number(c.id)},'${esc(c.name)}')">サービス利用を終了</button></aside>
       </div>`;
   }catch(err){root.innerHTML=`<div class="empty">読み込みに失敗しました。<br>${esc(err.message)}</div>`}
 }
 async function contractAction(id,action){try{await api(`/api/contracts/${id}/${action}`,{method:'POST'});await loadContractDetail()}catch(err){alert(err.message)}}
-async function cancelContract(id,name){if(!confirm(`${name} の契約を解約しますか？ 実サーバーも削除されます。`))return;try{await api(`/api/contracts/${id}/cancel`,{method:'POST'});location.href='/dashboard'}catch(err){alert(err.message)}}
+async function cancelContract(id,name){if(!confirm(`${name} の利用を終了しますか？ ホスティング環境も削除されます。`))return;try{await api(`/api/contracts/${id}/cancel`,{method:'POST'});location.href='/dashboard'}catch(err){alert(err.message)}}
 
 document.addEventListener('DOMContentLoaded',()=>{initCustomSelect();initCreatePage();loadContractDetail()});
