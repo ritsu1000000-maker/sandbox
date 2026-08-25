@@ -6,6 +6,9 @@
     <span class="page-label">SERVICE #{{ contract.id }}</span>
     <h1>{{ contract.name }}</h1>
     <p>ホスティング環境の状態、公開URL、実行環境、プランを管理します。</p>
+    {% if contract.status != 'canceled' %}
+    <p style="margin-top:18px"><a class="button button-primary" href="/servers/{{ contract.id }}/editor">コードを書く</a></p>
+    {% endif %}
   </div>
 </section>
 <section class="section">
