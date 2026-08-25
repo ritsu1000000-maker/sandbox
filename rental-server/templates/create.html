@@ -1,5 +1,12 @@
 {% extends "base.html" %}
 {% block title %}新規サービス｜Hosting Service{% endblock %}
+{% block head %}
+<style>
+.hosting-create-grid{align-items:start}
+.hosting-create-grid .create-btn{align-self:start;margin-top:27px}
+@media(max-width:1000px){.hosting-create-grid .create-btn{margin-top:0}}
+</style>
+{% endblock %}
 {% block content %}
 <section class="page-hero"><div class="container"><span class="page-label">NEW HOSTING SERVICE</span><h1>新しいサービスを作成</h1><p>プラン、サービス名、実行環境を選んでホスティングを開始します。無料プランは作成後すぐ発行されます。</p></div></section>
 <section class="section">
@@ -16,7 +23,7 @@
     <div class="application-box">
       <form id="createForm">
         <input type="hidden" id="plan" value="free">
-        <div class="form-grid">
+        <div class="form-grid hosting-create-grid">
           <div class="field">
             <label for="name">サービス名</label>
             <input id="name" placeholder="my-app" autocomplete="off" maxlength="32" pattern="[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?" title="1〜32文字の英小文字・数字・ハイフンを使用できます。" required>
