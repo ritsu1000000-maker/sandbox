@@ -2,15 +2,53 @@
 {% block title %}新規サービス｜Hosting Service{% endblock %}
 {% block head %}
 <style>
-.hosting-form-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(320px,1fr) auto;gap:14px;align-items:start}
-.hosting-control{min-width:0}
-.hosting-control>label{display:block;font-size:12px;font-weight:800;margin:0 0 7px;color:#4d596a;height:20px;line-height:20px}
-.hosting-control input,.hosting-control .select-trigger{height:50px}
-.hosting-submit-wrap{padding-top:27px}
-.hosting-submit-wrap .create-btn{height:50px;min-width:174px;white-space:nowrap}
-.hosting-name-note{font-size:12px;color:#7b8797;margin:13px 0 0}
-@media(max-width:1000px){.hosting-form-layout{grid-template-columns:1fr 1fr}.hosting-submit-wrap{grid-column:1/-1;padding-top:0}.hosting-submit-wrap .create-btn{width:100%}}
-@media(max-width:640px){.hosting-form-layout{grid-template-columns:1fr}.hosting-submit-wrap{grid-column:auto}}
+.hosting-form-layout{
+  display:grid;
+  grid-template-columns:minmax(0,1.6fr) minmax(320px,1fr) auto;
+  grid-template-areas:
+    "name-label runtime-label action-label"
+    "name-control runtime-control action-control"
+    "name-note . .";
+  column-gap:14px;
+  row-gap:7px;
+  align-items:center;
+}
+.hosting-label{display:block;font-size:12px;font-weight:800;color:#4d596a;line-height:20px;height:20px;margin:0}
+.hosting-name-label{grid-area:name-label}
+.hosting-runtime-label{grid-area:runtime-label}
+.hosting-action-label{grid-area:action-label;visibility:hidden}
+.hosting-name-input{grid-area:name-control;width:100%;height:50px;border:1px solid #ccd5df;border-radius:10px;background:#fff;color:#202b3c;padding:0 14px;outline:none;transition:.15s ease}
+.hosting-name-input:focus{border-color:#72a4d7;box-shadow:0 0 0 3px rgba(23,104,196,.08)}
+.hosting-runtime-control{grid-area:runtime-control;min-width:0;width:100%}
+.hosting-runtime-control .select-trigger{height:50px}
+.hosting-create-button{grid-area:action-control;height:50px;min-width:174px;margin:0!important;align-self:center;white-space:nowrap}
+.hosting-name-note{grid-area:name-note;font-size:12px;color:#7b8797;margin:4px 0 0}
+@media(max-width:1000px){
+  .hosting-form-layout{
+    grid-template-columns:1fr 1fr;
+    grid-template-areas:
+      "name-label runtime-label"
+      "name-control runtime-control"
+      "name-note ."
+      "action-control action-control";
+  }
+  .hosting-action-label{display:none}
+  .hosting-create-button{width:100%;margin-top:8px!important}
+}
+@media(max-width:640px){
+  .hosting-form-layout{
+    grid-template-columns:1fr;
+    grid-template-areas:
+      "name-label"
+      "name-control"
+      "name-note"
+      "runtime-label"
+      "runtime-control"
+      "action-control";
+    row-gap:8px;
+  }
+  .hosting-runtime-label{margin-top:10px}
+}
 </style>
 {% endblock %}
 {% block content %}
@@ -30,24 +68,24 @@
       <form id="createForm">
         <input type="hidden" id="plan" value="free">
         <div class="hosting-form-layout">
-          <div class="hosting-control">
-            <label for="name">サービス名</label>
-            <input id="name" placeholder="my-app" autocomplete="off" maxlength="32" pattern="[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?" title="1〜32文字の英小文字・数字・ハイフンを使用できます。" required>
-            <p class="hosting-name-note">1〜32文字。大文字は小文字、空白はハイフンに自動変換します。</p>
-          </div>
-          <div class="hosting-control">
-            <label>実行環境</label>
-            <div class="custom-select" data-custom-select>
-              <input type="hidden" id="template" value="python-web">
-              <button class="select-trigger" type="button" aria-expanded="false"><span class="select-icon" data-select-icon>PY</span><span class="select-copy"><strong data-select-label>Python Web</strong><span data-select-desc>Flask / Python向け</span></span><svg class="select-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 7.5l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-              <div class="select-menu">
-                <button type="button" class="select-option" data-value="python-web"><span class="select-icon">PY</span><span class="select-copy"><strong>Python Web</strong><span>Flask / Python向け</span></span><span class="checkmark">✓</span></button>
-                <button type="button" class="select-option" data-value="node-web"><span class="select-icon">JS</span><span class="select-copy"><strong>Node.js Web</strong><span>Node.jsアプリ向け</span></span><span class="checkmark">✓</span></button>
-                <button type="button" class="select-option" data-value="nginx"><span class="select-icon">NX</span><span class="select-copy"><strong>Nginx</strong><span>静的サイト・配信向け</span></span><span class="checkmark">✓</span></button>
-              </div>
+          <label class="hosting-label hosting-name-label" for="name">サービス名</label>
+          <label class="hosting-label hosting-runtime-label">実行環境</label>
+          <span class="hosting-label hosting-action-label" aria-hidden="true">作成</span>
+
+          <input class="hosting-name-input" id="name" placeholder="my-app" autocomplete="off" maxlength="32" pattern="[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?" title="1〜32文字の英小文字・数字・ハイフンを使用できます。" required>
+
+          <div class="custom-select hosting-runtime-control" data-custom-select>
+            <input type="hidden" id="template" value="python-web">
+            <button class="select-trigger" type="button" aria-expanded="false"><span class="select-icon" data-select-icon>PY</span><span class="select-copy"><strong data-select-label>Python Web</strong><span data-select-desc>Flask / Python向け</span></span><svg class="select-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 7.5l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <div class="select-menu">
+              <button type="button" class="select-option" data-value="python-web"><span class="select-icon">PY</span><span class="select-copy"><strong>Python Web</strong><span>Flask / Python向け</span></span><span class="checkmark">✓</span></button>
+              <button type="button" class="select-option" data-value="node-web"><span class="select-icon">JS</span><span class="select-copy"><strong>Node.js Web</strong><span>Node.jsアプリ向け</span></span><span class="checkmark">✓</span></button>
+              <button type="button" class="select-option" data-value="nginx"><span class="select-icon">NX</span><span class="select-copy"><strong>Nginx</strong><span>静的サイト・配信向け</span></span><span class="checkmark">✓</span></button>
             </div>
           </div>
-          <div class="hosting-submit-wrap"><button class="button button-primary create-btn" type="submit">この内容で作成</button></div>
+
+          <button class="button button-primary create-btn hosting-create-button" type="submit">この内容で作成</button>
+          <p class="hosting-name-note">1〜32文字。大文字は小文字、空白はハイフンに自動変換します。</p>
         </div>
         <p class="small-note" id="selectedPlanText"></p>
         <p class="small-note">有料プランは決済確認が完了するまでホスティング環境を発行しません。</p>
