@@ -44,8 +44,9 @@ class RentalService:
             or ("capacity" in text and "render" in text)
         )
 
-    @staticmethod
-    def _shared_url(lease: dict) -> str:
+    def _shared_url(self, lease: dict) -> str:
+        if self.settings.hosting_base_domain:
+            return f"https://{lease['resource_name']}.{self.settings.hosting_base_domain}"
         return f"/host/{lease['resource_name']}/"
 
     def _activate_shared(self, user_id: int, lease: dict) -> dict:
@@ -174,6 +175,11 @@ class RentalService:
 
         if lease.get("provider") == "shared":
             if lease["status"] in {"active", "stopped"}:
+                expected_url = self._shared_url(lease)
+                if lease.get("public_url") != expected_url:
+                    self.database.update_lease(lease_id, public_url=expected_url)
+                    lease = self.require_contract(user_id, lease_id)
+                    payload["contract"] = self.serialize_contract(lease)
                 payload["instance"] = self._shared_instance(lease)
             return payload
 
@@ -192,8 +198,10 @@ class RentalService:
                 payload["contract"] = self.serialize_contract(self.require_contract(user_id, lease_id))
                 payload["instance"] = instance
         except ServiceError as exc:
-            if exc.status == 404 and lease["status"] == "provisioning":
-                return payload
+            if exc.status == 404:
+                shared = self._activate_shared(user_id, lease)
+                updated = self.require_contract(user_id, lease_id)
+                return {"contract": shared, "instance": self._shared_instance(updated)}
             raise
         return payload
 
@@ -215,7 +223,13 @@ class RentalService:
         if lease["status"] != "active":
             raise ServiceError("利用中のサービスだけ操作できます。", 409)
         key = management_key(self.settings.instance_key_secret, lease["resource_name"])
-        result = self.manager.action(lease["resource_name"], action, key)
+        try:
+            result = self.manager.action(lease["resource_name"], action, key)
+        except ServiceError as exc:
+            if exc.status == 404:
+                self._activate_shared(user_id, lease)
+                return self.action(user_id, lease_id, action)
+            raise
         return {"contract": self.serialize_contract(lease), **result}
 
     def cancel(self, user_id: int, lease_id: int) -> dict:
