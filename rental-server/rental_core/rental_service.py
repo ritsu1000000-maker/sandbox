@@ -38,7 +38,47 @@ class RentalService:
     @staticmethod
     def _capacity_error(exc: Exception) -> bool:
         text = str(exc).lower()
-        return "limited to 25 services" in text or "service limit" in text or "capacity" in text and "render" in text
+        return (
+            "limited to 25 services" in text
+            or "service limit" in text
+            or ("capacity" in text and "render" in text)
+        )
+
+    @staticmethod
+    def _shared_url(lease: dict) -> str:
+        return f"/host/{lease['resource_name']}/"
+
+    def _activate_shared(self, user_id: int, lease: dict) -> dict:
+        self.database.update_lease(
+            lease["id"],
+            provider="shared",
+            status="active",
+            public_url=self._shared_url(lease),
+        )
+        return self.serialize_contract(self.require_contract(user_id, lease["id"]))
+
+    def _migrate_capacity_waiting(self, user_id: int, lease: dict) -> dict:
+        if lease.get("status") == "capacity_waiting":
+            self._activate_shared(user_id, lease)
+            return self.require_contract(user_id, lease["id"])
+        return lease
+
+    def _shared_instance(self, lease: dict) -> dict:
+        running = lease.get("status") == "active"
+        return {
+            "name": lease.get("display_name"),
+            "template": lease.get("template"),
+            "plan": lease.get("plan_id"),
+            "plan_name": PLANS.get(lease.get("plan_id"), {}).get("name", lease.get("plan_id")),
+            "status": "running" if running else "exited",
+            "url": lease.get("public_url") or self._shared_url(lease),
+            "host_port": None,
+            "container_id": f"shared-{lease.get('id')}",
+            "provider": "shared",
+            "region": "shared-hosting",
+            "created_at": lease.get("created_at"),
+            "updated_at": None,
+        }
 
     def _provision(self, user_id: int, lease: dict) -> dict:
         self.database.update_lease(lease["id"], status="provisioning")
@@ -56,8 +96,7 @@ class RentalService:
             )
         except ServiceError as exc:
             if self._capacity_error(exc):
-                self.database.update_lease(lease["id"], status="capacity_waiting")
-                return self.serialize_contract(self.require_contract(user_id, lease["id"]))
+                return self._activate_shared(user_id, lease)
             self.database.update_lease(lease["id"], status="provision_failed")
             raise
         except Exception:
@@ -71,13 +110,13 @@ class RentalService:
         template = str(data.get("template", "python-web"))
 
         if not display_name or not DISPLAY_NAME_RE.fullmatch(display_name):
-            raise ServiceError("サーバー名は英小文字・数字・ハイフンで1〜32文字にしてください。", 400)
+            raise ServiceError("サービス名は英小文字・数字・ハイフンで1〜32文字にしてください。", 400)
         if plan_id not in PLANS:
             raise ServiceError("unknown plan", 400)
         if template not in TEMPLATE_CODE:
             raise ServiceError("unknown template", 400)
         if self.database.get_lease_by_name(user_id, display_name):
-            raise ServiceError("同じ名前の契約がすでにあります。", 409)
+            raise ServiceError("同じ名前のサービスがすでにあります。", 409)
 
         plan = PLANS[plan_id]
         paid = int(plan["price_yen"]) > 0
@@ -102,31 +141,42 @@ class RentalService:
         """Internal hook for a future verified payment webhook."""
         lease = self.require_contract(user_id, lease_id)
         if lease["status"] != "pending_payment":
-            raise ServiceError("この契約は支払い待ちではありません。", 409)
+            raise ServiceError("このサービスは支払い待ちではありません。", 409)
         if not self.settings.allow_paid_render_plans and self.manager.provider_name == "render":
             raise ServiceError("Render有料プランの発行が無効です。", 409)
         return self._provision(user_id, lease)
 
     def retry_provision(self, user_id: int, lease_id: int) -> dict:
         lease = self.require_contract(user_id, lease_id)
-        if lease["status"] not in {"capacity_waiting", "provision_failed"}:
-            raise ServiceError("この契約は再発行待ちではありません。", 409)
+        if lease["status"] == "capacity_waiting":
+            return self._activate_shared(user_id, lease)
+        if lease["status"] != "provision_failed":
+            raise ServiceError("このサービスは再発行待ちではありません。", 409)
         if int(PLANS.get(lease["plan_id"], {}).get("price_yen", 0)) > 0:
-            raise ServiceError("有料契約は決済確認後に発行してください。", 409)
+            raise ServiceError("有料サービスは決済確認後に発行してください。", 409)
         return self._provision(user_id, lease)
 
     def list_contracts(self, user_id: int) -> list[dict]:
-        return [self.serialize_contract(row) for row in self.database.list_leases(user_id)]
+        rows = []
+        for row in self.database.list_leases(user_id):
+            rows.append(self._migrate_capacity_waiting(user_id, row))
+        return [self.serialize_contract(row) for row in rows]
 
     def require_contract(self, user_id: int, lease_id: int) -> dict:
         lease = self.database.get_lease(user_id, lease_id)
         if not lease:
-            raise ServiceError("契約が見つかりません。", 404)
+            raise ServiceError("サービスが見つかりません。", 404)
         return lease
 
     def instance_for_contract(self, user_id: int, lease_id: int) -> dict:
-        lease = self.require_contract(user_id, lease_id)
+        lease = self._migrate_capacity_waiting(user_id, self.require_contract(user_id, lease_id))
         payload = {"contract": self.serialize_contract(lease), "instance": None}
+
+        if lease.get("provider") == "shared":
+            if lease["status"] in {"active", "stopped"}:
+                payload["instance"] = self._shared_instance(lease)
+            return payload
+
         if lease["status"] not in {"active", "provisioning"}:
             return payload
         key = management_key(self.settings.instance_key_secret, lease["resource_name"])
@@ -148,18 +198,31 @@ class RentalService:
         return payload
 
     def action(self, user_id: int, lease_id: int, action: str) -> dict:
-        lease = self.require_contract(user_id, lease_id)
+        lease = self._migrate_capacity_waiting(user_id, self.require_contract(user_id, lease_id))
+
+        if lease.get("provider") == "shared":
+            if lease["status"] not in {"active", "stopped"}:
+                raise ServiceError("利用可能なサービスだけ操作できます。", 409)
+            if action == "stop":
+                self.database.update_lease(lease_id, status="stopped")
+            elif action in {"start", "restart"}:
+                self.database.update_lease(lease_id, status="active")
+            else:
+                raise ServiceError("unsupported action", 400)
+            updated = self.require_contract(user_id, lease_id)
+            return {"contract": self.serialize_contract(updated), "instance": self._shared_instance(updated)}
+
         if lease["status"] != "active":
-            raise ServiceError("利用中の契約だけ操作できます。", 409)
+            raise ServiceError("利用中のサービスだけ操作できます。", 409)
         key = management_key(self.settings.instance_key_secret, lease["resource_name"])
         result = self.manager.action(lease["resource_name"], action, key)
         return {"contract": self.serialize_contract(lease), **result}
 
     def cancel(self, user_id: int, lease_id: int) -> dict:
-        lease = self.require_contract(user_id, lease_id)
+        lease = self._migrate_capacity_waiting(user_id, self.require_contract(user_id, lease_id))
         if lease["status"] == "canceled":
             return self.serialize_contract(lease)
-        if lease["status"] == "active":
+        if lease.get("provider") != "shared" and lease["status"] == "active":
             key = management_key(self.settings.instance_key_secret, lease["resource_name"])
             try:
                 self.manager.delete(lease["resource_name"], key)
