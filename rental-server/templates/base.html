@@ -24,10 +24,12 @@
         <a href="/dashboard" class="{% if active_page=='dashboard' %}active{% endif %}">ダッシュボード</a>
         <a href="/create" class="{% if active_page=='create' %}active{% endif %}">新規サービス</a>
         <a href="/billing" class="{% if active_page=='billing' %}active{% endif %}">プラン・請求</a>
+        {% if current_is_admin %}<a href="/admin" class="{% if active_page=='admin' %}active{% endif %}">Admin</a>{% endif %}
       {% endif %}
     </nav>
     <div class="header-account">
       {% if current_user %}
+        {% if current_is_admin %}<span class="admin-badge">ADMIN</span>{% endif %}
         <span class="header-user">{{ current_user.email }}</span>
         <form method="post" action="/logout" class="logout-form"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">ログアウト</button></form>
       {% else %}
