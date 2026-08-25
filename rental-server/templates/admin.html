@@ -32,12 +32,12 @@
           <td>
             <div class="admin-actions">
               {% if s.status in ['active','stopped'] %}
-                <button type="button" onclick="adminServiceAction({{ s.id }},'start')">Start</button>
-                <button type="button" onclick="adminServiceAction({{ s.id }},'stop')">Stop</button>
-                <button type="button" onclick="adminServiceAction({{ s.id }},'restart')">Restart</button>
+                <button type="button" data-admin-action="start" data-service-id="{{ s.id }}">Start</button>
+                <button type="button" data-admin-action="stop" data-service-id="{{ s.id }}">Stop</button>
+                <button type="button" data-admin-action="restart" data-service-id="{{ s.id }}">Restart</button>
               {% endif %}
-              {% if s.status in ['capacity_waiting','provision_failed'] %}<button type="button" onclick="adminServiceAction({{ s.id }},'retry')">Retry</button>{% endif %}
-              {% if s.status != 'canceled' %}<button class="danger" type="button" onclick="adminServiceAction({{ s.id }},'cancel',true)">終了</button>{% endif %}
+              {% if s.status in ['capacity_waiting','provision_failed'] %}<button type="button" data-admin-action="retry" data-service-id="{{ s.id }}">Retry</button>{% endif %}
+              {% if s.status != 'canceled' %}<button class="danger" type="button" data-admin-action="cancel" data-service-id="{{ s.id }}" data-danger="true">終了</button>{% endif %}
             </div>
           </td>
         </tr>
