@@ -7,7 +7,7 @@
 .header-user{display:block;max-width:165px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .logout-form{flex:0 0 auto}
 .logout-form button{white-space:nowrap;word-break:keep-all;min-width:96px;height:44px;padding:0 16px}
-.admin-badge{flex:0 0 auto;white-space:nowrap}
+.header-admin-badge{flex:0 0 auto;white-space:nowrap}
 @media(max-width:1280px){
   .global-nav{display:none}
   .header-inner{justify-content:space-between}
