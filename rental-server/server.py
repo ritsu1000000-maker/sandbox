@@ -87,7 +87,7 @@ def check_config() -> int:
 def run_web() -> int:
     load_local_environment()
     from rental_core.config import Settings
-    from app import app
+    from app_ext import app
 
     settings = Settings.from_env()
     try:
