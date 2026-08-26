@@ -9,11 +9,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY app.py runner.py server.py gunicorn.conf.py ./
+COPY app.py app_ext.py runner.py server.py gunicorn.conf.py ./
 COPY rental_core ./rental_core
 COPY templates ./templates
 COPY static ./static
 
 EXPOSE 8080 9000
 
-CMD ["gunicorn", "-c", "gunicorn.conf.py", "app:app"]
+CMD ["gunicorn", "-c", "gunicorn.conf.py", "app_ext:app"]
