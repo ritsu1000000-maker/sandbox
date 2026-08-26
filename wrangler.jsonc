@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "rental-server",
+  "name": "testsandbox1",
   "main": "rental-server/src/index.js",
   "compatibility_date": "2026-08-26",
   "containers": [
