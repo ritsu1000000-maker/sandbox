@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import io
+import os
 import re
 import shlex
 import tarfile
@@ -21,12 +22,17 @@ client = docker.from_env()
 RUNNER_TOKEN = settings.runner_token
 MAX_INSTANCES = settings.max_instances
 NAME_RE = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$")
+ENV_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 LABEL_KEY = "rental.server.instance"
+RUNTIME_VERSION = "2"
 MAX_SYNC_FILES = 100
 MAX_SYNC_FILE_BYTES = 512 * 1024
 MAX_SYNC_TOTAL_BYTES = 5 * 1024 * 1024
 MAX_COMMAND_LENGTH = 2000
-MAX_OUTPUT_BYTES = 64 * 1024
+MAX_OUTPUT_BYTES = 128 * 1024
+MAX_ENV_VARS = 64
+MAX_ENV_VALUE_LENGTH = 4096
+RUNNER_PUBLIC_BASE_URL = os.environ.get("RUNNER_PUBLIC_BASE_URL", "http://127.0.0.1").strip().rstrip("/")
 ALLOWED_EXECUTABLES = {
     "python", "python3", "node", "npm", "npx", "pip", "pip3",
     "ls", "pwd", "cat", "echo",
@@ -41,21 +47,87 @@ PLANS = {
 }
 
 TEMPLATES = {
-    "python-web": {
-        "image": "python:3.12-alpine",
-        "port": 8080,
-        "command": ["python", "-m", "http.server", "8080", "--bind", "0.0.0.0"],
-    },
-    "node-web": {
-        "image": "node:22-alpine",
-        "port": 3000,
-        "command": [
-            "node", "-e",
-            "require('http').createServer((q,s)=>{s.end('Node rental server is running\\n')}).listen(3000,'0.0.0')",
-        ],
-    },
-    "nginx": {"image": "nginxinc/nginx-unprivileged:alpine", "port": 8080, "command": None},
+    "python-web": {"image": "python:3.12-alpine", "port": 8080},
+    "node-web": {"image": "node:22-alpine", "port": 3000},
+    "nginx": {"image": "nginxinc/nginx-unprivileged:alpine", "port": 8080},
 }
+
+SUPERVISOR_COMMAND = r'''
+set +e
+child=""
+cleanup() {
+  if [ -n "$child" ]; then kill "$child" 2>/dev/null || true; fi
+  exit 0
+}
+trap cleanup TERM INT
+mkdir -p /workspace/project /workspace/runtime
+while :; do
+  if [ ! -f /workspace/runtime/enabled ]; then
+    sleep 1
+    continue
+  fi
+  if [ ! -s /workspace/runtime/start-command ]; then
+    echo "[runtime] Start Command is empty" >> /workspace/runtime/app.log
+    rm -f /workspace/runtime/enabled
+    sleep 1
+    continue
+  fi
+  [ -f /workspace/runtime/env.sh ] && . /workspace/runtime/env.sh
+  root="$(cat /workspace/runtime/root-directory 2>/dev/null || printf '.')"
+  if [ "$root" = "." ] || [ -z "$root" ]; then
+    workdir="/workspace/project"
+  else
+    workdir="/workspace/project/$root"
+  fi
+  command="$(cat /workspace/runtime/start-command)"
+  if [ ! -d "$workdir" ]; then
+    echo "[runtime] Root Directory not found: $root" >> /workspace/runtime/app.log
+    rm -f /workspace/runtime/enabled
+    sleep 1
+    continue
+  fi
+  echo "[runtime] starting: $command" >> /workspace/runtime/app.log
+  cd "$workdir" || { rm -f /workspace/runtime/enabled; continue; }
+  sh -lc "$command" >> /workspace/runtime/app.log 2>&1 &
+  child=$!
+  echo "$child" > /workspace/runtime/app.pid
+  wait "$child"
+  code=$?
+  child=""
+  rm -f /workspace/runtime/app.pid
+  echo "[runtime] process exited with code $code" >> /workspace/runtime/app.log
+  if [ ! -f /workspace/runtime/enabled ]; then
+    continue
+  fi
+  always="$(cat /workspace/runtime/always-on 2>/dev/null || printf '0')"
+  if [ "$always" != "1" ]; then
+    rm -f /workspace/runtime/enabled
+  else
+    echo "[runtime] always-on restart in 2s" >> /workspace/runtime/app.log
+    sleep 2
+  fi
+done
+'''
+
+NGINX_COMMAND = r'''
+cat > /tmp/hosting-nginx.conf <<'EOF'
+events {}
+http {
+  access_log /dev/stdout;
+  error_log /dev/stderr warn;
+  server {
+    listen 8080;
+    server_name _;
+    root /workspace/project;
+    index index.html;
+    location / {
+      try_files $uri $uri/ /index.html =404;
+    }
+  }
+}
+EOF
+exec nginx -c /tmp/hosting-nginx.conf -g 'daemon off;'
+'''
 
 
 def auth_required(fn):
@@ -73,6 +145,10 @@ def auth_required(fn):
 
 def container_name(name: str) -> str:
     return f"rental-{name}"
+
+
+def volume_name(name: str) -> str:
+    return f"rental-data-{name}"
 
 
 def validate_name(name: str) -> bool:
@@ -112,37 +188,160 @@ def normalize_project_path(value: str) -> str:
     return path.as_posix()
 
 
-def sync_project_files(container, files):
-    if not isinstance(files, list) or len(files) > MAX_SYNC_FILES:
-        raise ValueError("too many project files")
-    total = 0
-    archive_buffer = io.BytesIO()
-    with tarfile.open(fileobj=archive_buffer, mode="w") as archive:
-        root = tarfile.TarInfo("project")
-        root.type = tarfile.DIRTYPE
-        root.mode = 0o777
-        root.uid = 65534
-        root.gid = 65534
-        archive.addfile(root)
-        for item in files:
-            if not isinstance(item, dict):
-                raise ValueError("invalid project file")
-            path = normalize_project_path(item.get("path", ""))
-            content = str(item.get("content", "")).encode("utf-8")
-            if len(content) > MAX_SYNC_FILE_BYTES:
-                raise ValueError("project file too large")
-            total += len(content)
-            if total > MAX_SYNC_TOTAL_BYTES:
-                raise ValueError("project sync exceeds 5MB")
-            info = tarfile.TarInfo(f"project/{path}")
+def normalize_root_directory(value: str) -> str:
+    raw = str(value or ".").strip().replace("\\", "/")
+    if raw in {"", "."}:
+        return "."
+    if raw.startswith("/") or len(raw) > 120:
+        raise ValueError("invalid root directory")
+    path = PurePosixPath(raw)
+    if any(part in {"", ".", ".."} for part in path.parts) or len(path.parts) > 8:
+        raise ValueError("invalid root directory")
+    return path.as_posix()
+
+
+def normalize_shell_command(value, label: str, allow_empty=True) -> str:
+    command = str(value or "").strip()
+    if not command and allow_empty:
+        return ""
+    if not command or len(command) > MAX_COMMAND_LENGTH or "\x00" in command or "\r" in command or "\n" in command:
+        raise ValueError(f"invalid {label}")
+    return command
+
+
+def normalize_environment(value) -> dict[str, str]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict) or len(value) > MAX_ENV_VARS:
+        raise ValueError("invalid environment variables")
+    result = {}
+    for raw_key, raw_value in value.items():
+        key = str(raw_key or "").strip()
+        text = str(raw_value if raw_value is not None else "")
+        if not ENV_KEY_RE.fullmatch(key) or len(text) > MAX_ENV_VALUE_LENGTH or "\x00" in text:
+            raise ValueError(f"invalid environment variable: {key}")
+        if key in {"PORT", "HOST", "HOME", "PIP_TARGET", "PYTHONPATH", "npm_config_cache"}:
+            raise ValueError(f"reserved environment variable: {key}")
+        result[key] = text
+    return result
+
+
+def _archive_files(entries: list[tuple[str, bytes, int]], root_name=None) -> bytes:
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w") as archive:
+        if root_name:
+            root = tarfile.TarInfo(root_name)
+            root.type = tarfile.DIRTYPE
+            root.mode = 0o775
+            root.uid = 65534
+            root.gid = 65534
+            archive.addfile(root)
+        for path, content, mode in entries:
+            info = tarfile.TarInfo(path)
             info.size = len(content)
-            info.mode = 0o644
+            info.mode = mode
             info.uid = 65534
             info.gid = 65534
             archive.addfile(info, io.BytesIO(content))
+    return buffer.getvalue()
 
-    container.exec_run(["sh", "-lc", "rm -rf /tmp/project && mkdir -p /tmp/project && chmod 0777 /tmp/project"], user="0")
-    container.put_archive("/tmp", archive_buffer.getvalue())
+
+def sync_project_files(container, files, preserve_dependencies=True):
+    if not isinstance(files, list) or len(files) > MAX_SYNC_FILES:
+        raise ValueError("too many project files")
+    total = 0
+    entries = []
+    for item in files:
+        if not isinstance(item, dict):
+            raise ValueError("invalid project file")
+        path = normalize_project_path(item.get("path", ""))
+        content = str(item.get("content", "")).encode("utf-8")
+        if len(content) > MAX_SYNC_FILE_BYTES:
+            raise ValueError("project file too large")
+        total += len(content)
+        if total > MAX_SYNC_TOTAL_BYTES:
+            raise ValueError("project sync exceeds 5MB")
+        entries.append((f"project/{path}", content, 0o644))
+
+    container.exec_run(["sh", "-lc", "mkdir -p /workspace/project /workspace/runtime && chown -R 65534:65534 /workspace"], user="0")
+    if preserve_dependencies:
+        cleanup = r'''
+for item in /workspace/project/* /workspace/project/.[!.]* /workspace/project/..?*; do
+  [ -e "$item" ] || continue
+  case "$item" in
+    /workspace/project/.python|/workspace/project/.npm-cache|/workspace/project/node_modules) ;;
+    *) rm -rf "$item" ;;
+  esac
+done
+'''
+    else:
+        cleanup = "rm -rf /workspace/project && mkdir -p /workspace/project && chown 65534:65534 /workspace/project"
+    container.exec_run(["sh", "-lc", cleanup], user="0")
+    container.put_archive("/workspace", _archive_files(entries, root_name="project"))
+
+
+def _container_command(template_name: str):
+    if template_name == "nginx":
+        return ["sh", "-lc", NGINX_COMMAND]
+    return ["sh", "-lc", SUPERVISOR_COMMAND]
+
+
+def _run_managed_container(name: str, template_name: str, plan_name: str, manage_sha256: str):
+    template = TEMPLATES[template_name]
+    plan = PLANS[plan_name]
+    internal_port = template["port"]
+    volume = client.volumes.create(name=volume_name(name), labels={LABEL_KEY: "true", "rental.server.name": name})
+    container = client.containers.run(
+        template["image"],
+        command=_container_command(template_name),
+        name=container_name(name),
+        detach=True,
+        restart_policy={"Name": "unless-stopped"},
+        mem_limit=plan["mem_limit"],
+        nano_cpus=plan["nano_cpus"],
+        pids_limit=128,
+        read_only=True,
+        cap_drop=["ALL"],
+        security_opt=["no-new-privileges"],
+        tmpfs={
+            "/tmp": "rw,nosuid,size=128m",
+            "/var/cache/nginx": "rw,noexec,nosuid,size=16m",
+            "/var/run": "rw,noexec,nosuid,size=4m",
+        },
+        volumes={volume.name: {"bind": "/workspace", "mode": "rw"}},
+        ports={f"{internal_port}/tcp": None},
+        labels={
+            LABEL_KEY: "true",
+            "rental.server.runtime_version": RUNTIME_VERSION,
+            "rental.server.name": name,
+            "rental.server.template": template_name,
+            "rental.server.plan": plan_name,
+            "rental.server.storage_gb": str(plan["storage_gb"]),
+            "rental.server.price_yen": str(plan["price_yen"]),
+            "rental.server.manage_sha256": manage_sha256,
+        },
+    )
+    try:
+        container.exec_run(["sh", "-lc", "mkdir -p /workspace/project /workspace/runtime && chown -R 65534:65534 /workspace"], user="0")
+    except DockerException:
+        pass
+    return container
+
+
+def recreate_legacy_container(container):
+    if container.labels.get("rental.server.runtime_version") == RUNTIME_VERSION:
+        return container
+    name = container.labels.get("rental.server.name", "")
+    template_name = container.labels.get("rental.server.template", "python-web")
+    plan_name = container.labels.get("rental.server.plan", "free")
+    manage_sha256 = container.labels.get("rental.server.manage_sha256", "")
+    if not validate_name(name) or template_name not in TEMPLATES or plan_name not in PLANS or not manage_sha256:
+        raise ValueError("legacy instance metadata is invalid")
+    try:
+        container.remove(force=True)
+    except DockerException:
+        pass
+    return _run_managed_container(name, template_name, plan_name, manage_sha256)
 
 
 def serialize(container):
@@ -167,6 +366,7 @@ def serialize(container):
         price_value = int(price) if price is not None else plan.get("price_yen")
     except ValueError:
         price_value = plan.get("price_yen")
+    host_port = int(published) if published else None
     return {
         "name": container.labels.get("rental.server.name", container.name),
         "template": container.labels.get("rental.server.template", "unknown"),
@@ -175,10 +375,61 @@ def serialize(container):
         "storage_gb": storage_value,
         "price_yen": price_value,
         "status": container.status,
-        "host_port": int(published) if published else None,
+        "host_port": host_port,
+        "url": f"{RUNNER_PUBLIC_BASE_URL}:{host_port}" if host_port else None,
         "container_id": container.short_id,
         "provider": "runner",
+        "runtime_version": container.labels.get("rental.server.runtime_version", "1"),
     }
+
+
+def _runtime_env(template_name: str, user_env: dict[str, str]) -> dict[str, str]:
+    port = str(TEMPLATES[template_name]["port"])
+    env = {
+        "PORT": port,
+        "HOST": "0.0.0.0",
+        "HOME": "/workspace/project",
+        "PIP_TARGET": "/workspace/project/.python",
+        "PYTHONPATH": "/workspace/project/.python",
+        "npm_config_cache": "/workspace/project/.npm-cache",
+    }
+    env.update(user_env)
+    return env
+
+
+def _write_runtime_config(container, template_name: str, start_command: str, root_directory: str, always_on: bool, env: dict[str, str]):
+    runtime_env = _runtime_env(template_name, env)
+    env_script = "\n".join(f"export {key}={shlex.quote(str(value))}" for key, value in runtime_env.items()) + "\n"
+    entries = [
+        ("runtime/start-command", (start_command + "\n").encode("utf-8"), 0o600),
+        ("runtime/root-directory", (root_directory + "\n").encode("utf-8"), 0o600),
+        ("runtime/always-on", ("1\n" if always_on else "0\n").encode("ascii"), 0o600),
+        ("runtime/env.sh", env_script.encode("utf-8"), 0o600),
+    ]
+    container.exec_run(["sh", "-lc", "mkdir -p /workspace/runtime && chown -R 65534:65534 /workspace/runtime"], user="0")
+    container.put_archive("/workspace", _archive_files(entries, root_name="runtime"))
+
+
+def _stop_runtime(container):
+    command = r'''
+rm -f /workspace/runtime/enabled
+if [ -f /workspace/runtime/app.pid ]; then
+  pid="$(cat /workspace/runtime/app.pid 2>/dev/null || true)"
+  [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
+fi
+sleep 0.2
+rm -f /workspace/runtime/app.pid
+'''
+    container.exec_run(["sh", "-lc", command], user="0")
+
+
+def _tail_runtime_log(container, lines=300) -> str:
+    result = container.exec_run(
+        ["sh", "-lc", f"tail -n {int(lines)} /workspace/runtime/app.log 2>/dev/null || true"],
+        user="0",
+    )
+    output = result.output or b""
+    return output[:MAX_OUTPUT_BYTES].decode("utf-8", errors="replace")
 
 
 @app.get("/health")
@@ -188,7 +439,7 @@ def health():
         docker_ok = True
     except DockerException:
         docker_ok = False
-    return jsonify({"ok": docker_ok and bool(RUNNER_TOKEN), "service": "rental-server-runner", "docker": docker_ok, "configured": bool(RUNNER_TOKEN), "max_instances": MAX_INSTANCES}), (200 if docker_ok and RUNNER_TOKEN else 503)
+    return jsonify({"ok": docker_ok and bool(RUNNER_TOKEN), "service": "rental-server-runner", "docker": docker_ok, "configured": bool(RUNNER_TOKEN), "max_instances": MAX_INSTANCES, "runtime_version": RUNTIME_VERSION}), (200 if docker_ok and RUNNER_TOKEN else 503)
 
 
 @app.get("/plans")
@@ -248,19 +499,108 @@ def create_instance():
             return jsonify({"error": "instance already exists"}), 409
         except NotFound:
             pass
-        template = TEMPLATES[template_name]
-        plan = PLANS[plan_name]
-        internal_port = template["port"]
-        container = client.containers.run(
-            template["image"], command=template["command"], name=container_name(name), detach=True,
-            restart_policy={"Name": "unless-stopped"}, mem_limit=plan["mem_limit"], nano_cpus=plan["nano_cpus"],
-            pids_limit=128, read_only=True, cap_drop=["ALL"], security_opt=["no-new-privileges"],
-            tmpfs={"/tmp": "rw,nosuid,size=128m", "/var/cache/nginx": "rw,noexec,nosuid,size=16m", "/var/run": "rw,noexec,nosuid,size=4m"},
-            ports={f"{internal_port}/tcp": None},
-            labels={LABEL_KEY: "true", "rental.server.name": name, "rental.server.template": template_name, "rental.server.plan": plan_name, "rental.server.storage_gb": str(plan["storage_gb"]), "rental.server.price_yen": str(plan["price_yen"]), "rental.server.manage_sha256": key_hash(manage_key)},
-        )
+        container = _run_managed_container(name, template_name, plan_name, key_hash(manage_key))
         return jsonify({"instance": serialize(container)}), 201
     except (APIError, DockerException) as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.post("/instances/<name>/deploy")
+@auth_required
+def deploy_instance(name: str):
+    if not validate_name(name):
+        return jsonify({"error": "invalid name"}), 400
+    data = request.get_json(silent=True) or {}
+    try:
+        build_command = normalize_shell_command(data.get("build_command", ""), "build command", allow_empty=True)
+        start_command = normalize_shell_command(data.get("start_command", ""), "start command", allow_empty=True)
+        root_directory = normalize_root_directory(data.get("root_directory", "."))
+        user_env = normalize_environment(data.get("env", {}))
+        always_on = bool(data.get("always_on", True))
+        container = get_managed_container(name)
+        if not verify_instance_key(container):
+            return jsonify({"error": "invalid management key"}), 403
+        container = recreate_legacy_container(container)
+        container.reload()
+        if container.status != "running":
+            container.start()
+            container.reload()
+
+        template_name = container.labels.get("rental.server.template", "python-web")
+        steps = []
+        _stop_runtime(container)
+        steps.append({"id": "stop", "status": "done", "message": "previous runtime stopped"})
+
+        sync_project_files(container, data.get("files", []), preserve_dependencies=True)
+        steps.append({"id": "sync", "status": "done", "message": "project files synced"})
+
+        if root_directory != ".":
+            check = container.exec_run(["sh", "-lc", f"test -d {shlex.quote('/workspace/project/' + root_directory)}"], user="65534:65534")
+            if int(check.exit_code) != 0:
+                return jsonify({"error": f"Root Directory not found: {root_directory}", "steps": steps}), 400
+        workdir = "/workspace/project" if root_directory == "." else f"/workspace/project/{root_directory}"
+        runtime_env = _runtime_env(template_name, user_env)
+
+        build_output = ""
+        if build_command:
+            result = container.exec_run(
+                ["timeout", "120s", "sh", "-lc", build_command],
+                workdir=workdir,
+                user="65534:65534",
+                environment=runtime_env,
+            )
+            raw = result.output or b""
+            build_output = raw[:MAX_OUTPUT_BYTES].decode("utf-8", errors="replace")
+            if int(result.exit_code) != 0:
+                steps.append({"id": "build", "status": "failed", "message": f"Build Command exited with {int(result.exit_code)}"})
+                return jsonify({"error": "Build Command failed", "exit_code": int(result.exit_code), "output": build_output, "steps": steps}), 422
+            steps.append({"id": "build", "status": "done", "message": "Build Command completed"})
+        else:
+            steps.append({"id": "build", "status": "skipped", "message": "Build Command is empty"})
+
+        if template_name == "nginx":
+            steps.append({"id": "start", "status": "done", "message": "Nginx serves /workspace/project directly"})
+            return jsonify({"ok": True, "instance": serialize(container), "steps": steps, "build_output": build_output, "runtime": {"app_running": container.status == "running", "always_on": True, "root_directory": root_directory}})
+
+        if not start_command:
+            return jsonify({"error": "Start Command is required for this runtime", "steps": steps}), 400
+        _write_runtime_config(container, template_name, start_command, root_directory, always_on, user_env)
+        container.exec_run(["sh", "-lc", "touch /workspace/runtime/enabled && chown 65534:65534 /workspace/runtime/enabled"], user="0")
+        steps.append({"id": "start", "status": "done", "message": "Start Command scheduled"})
+        return jsonify({"ok": True, "instance": serialize(container), "steps": steps, "build_output": build_output, "runtime": {"app_running": True, "always_on": always_on, "root_directory": root_directory}})
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except NotFound:
+        return jsonify({"error": "instance not found"}), 404
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
+    except DockerException as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
+@app.get("/instances/<name>/runtime")
+@auth_required
+def runtime_status(name: str):
+    if not validate_name(name):
+        return jsonify({"error": "invalid name"}), 400
+    try:
+        container = get_managed_container(name)
+        if not verify_instance_key(container):
+            return jsonify({"error": "invalid management key"}), 403
+        container.reload()
+        template_name = container.labels.get("rental.server.template", "python-web")
+        if template_name == "nginx":
+            return jsonify({"runtime": {"app_running": container.status == "running", "deployed": True, "always_on": True, "status": container.status}})
+        result = container.exec_run(["sh", "-lc", "if [ -f /workspace/runtime/app.pid ] && kill -0 \"$(cat /workspace/runtime/app.pid)\" 2>/dev/null; then printf running; elif [ -f /workspace/runtime/enabled ]; then printf starting; else printf stopped; fi"], user="0")
+        state = (result.output or b"").decode("utf-8", errors="replace").strip() or "stopped"
+        always_result = container.exec_run(["sh", "-lc", "cat /workspace/runtime/always-on 2>/dev/null || printf 0"], user="0")
+        always_on = (always_result.output or b"").decode("utf-8", errors="replace").strip() == "1"
+        return jsonify({"runtime": {"app_running": state in {"running", "starting"}, "deployed": state != "stopped", "always_on": always_on, "status": state}})
+    except NotFound:
+        return jsonify({"error": "instance not found"}), 404
+    except PermissionError as exc:
+        return jsonify({"error": str(exc)}), 403
+    except DockerException as exc:
         return jsonify({"error": str(exc)}), 500
 
 
@@ -283,24 +623,22 @@ def exec_instance(name: str):
         container = get_managed_container(name)
         if not verify_instance_key(container):
             return jsonify({"error": "invalid management key"}), 403
+        container = recreate_legacy_container(container)
+        container.reload()
         if container.status != "running":
             return jsonify({"error": "instance is not running"}), 409
-        sync_project_files(container, data.get("files", []))
+        sync_project_files(container, data.get("files", []), preserve_dependencies=True)
+        template_name = container.labels.get("rental.server.template", "python-web")
         result = container.exec_run(
             ["timeout", "20s", *argv],
-            workdir="/tmp/project",
+            workdir="/workspace/project",
             user="65534:65534",
-            environment={
-                "HOME": "/tmp/project",
-                "PIP_TARGET": "/tmp/project/.python",
-                "PYTHONPATH": "/tmp/project/.python",
-                "npm_config_cache": "/tmp/project/.npm-cache",
-            },
+            environment=_runtime_env(template_name, {}),
         )
         output = result.output or b""
         truncated = len(output) > MAX_OUTPUT_BYTES
         output = output[:MAX_OUTPUT_BYTES].decode("utf-8", errors="replace")
-        return jsonify({"exit_code": int(result.exit_code), "output": output, "truncated": truncated, "cwd": "/tmp/project"})
+        return jsonify({"exit_code": int(result.exit_code), "output": output, "truncated": truncated, "cwd": "/workspace/project"})
     except ValueError as exc:
         return jsonify({"error": str(exc)}), 400
     except NotFound:
@@ -347,6 +685,10 @@ def delete_instance(name: str):
         if not verify_instance_key(container):
             return jsonify({"error": "invalid management key"}), 403
         container.remove(force=True)
+        try:
+            client.volumes.get(volume_name(name)).remove(force=True)
+        except (NotFound, DockerException):
+            pass
         return jsonify({"ok": True})
     except NotFound:
         return jsonify({"error": "instance not found"}), 404
@@ -365,8 +707,12 @@ def logs(name: str):
         container = get_managed_container(name)
         if not verify_instance_key(container):
             return jsonify({"error": "invalid management key"}), 403
-        text = container.logs(tail=200, timestamps=True).decode("utf-8", errors="replace")
-        return jsonify({"logs": text})
+        container_text = container.logs(tail=200, timestamps=True).decode("utf-8", errors="replace")
+        app_text = _tail_runtime_log(container)
+        text = app_text if app_text else container_text
+        if app_text and container_text:
+            text = f"--- application ---\n{app_text}\n--- container ---\n{container_text}"
+        return jsonify({"logs": text[-MAX_OUTPUT_BYTES:]})
     except NotFound:
         return jsonify({"error": "instance not found"}), 404
     except PermissionError as exc:
