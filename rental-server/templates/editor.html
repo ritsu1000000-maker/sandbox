@@ -48,9 +48,64 @@
         <button type="button" id="reloadPreview">更新</button>
       </div>
       <iframe id="sitePreview" title="ホスティングプレビュー" sandbox="allow-scripts allow-forms"></iframe>
-      <p class="editor-preview-note">共有ホスティングでは <code>index.html</code> が公開ページです。Python / Node.js の実コマンドは隔離Docker Runner接続時にPROJECT TERMINALから実行できます。</p>
+      <p class="editor-preview-note">共有ホスティングでは <code>index.html</code> が公開ページです。Python / Node.js の実アプリは隔離Docker RunnerへDeployして起動します。</p>
     </aside>
   </div>
+
+  <section class="deploy-console" id="deployConsole">
+    <div class="deploy-console-head">
+      <div>
+        <span class="editor-kicker">BUILD & DEPLOY</span>
+        <h2>実行設定</h2>
+        <p>RenderのようにBuild Command・Start Command・Root Directory・環境変数を設定できます。</p>
+      </div>
+      <div class="deploy-head-actions">
+        <span class="runtime-state" id="runtimeState">確認中</span>
+        <button type="button" class="button button-outline" id="saveRuntimeSettings">設定を保存</button>
+        <button type="button" class="button button-primary" id="deployProject">Deploy</button>
+      </div>
+    </div>
+
+    <div class="deploy-settings-grid">
+      <label class="deploy-field">
+        <span>Build Command</span>
+        <input id="buildCommand" type="text" autocomplete="off" spellcheck="false" placeholder="pip install -r requirements.txt">
+        <small>Deploy時に最初に実行します。空欄ならスキップします。</small>
+      </label>
+      <label class="deploy-field">
+        <span>Start Command</span>
+        <input id="startCommand" type="text" autocomplete="off" spellcheck="false" placeholder="python -m gunicorn app:app --bind 0.0.0.0:$PORT">
+        <small>Build成功後にアプリ本体を起動するコマンドです。</small>
+      </label>
+      <label class="deploy-field deploy-root-field">
+        <span>Root Directory</span>
+        <input id="rootDirectory" type="text" autocomplete="off" spellcheck="false" value="." placeholder=".">
+        <small>モノレポなら backend などの相対フォルダを指定できます。</small>
+      </label>
+      <label class="always-on-card">
+        <input id="alwaysOn" type="checkbox" checked>
+        <span><strong>24時間モード</strong><small>アプリが終了した場合、隔離コンテナ内のSupervisorが自動で再起動します。</small></span>
+      </label>
+      <label class="deploy-field deploy-env-field">
+        <span>Environment Variables</span>
+        <textarea id="environmentVariables" spellcheck="false" placeholder="DISCORD_TOKEN=...&#10;API_URL=https://example.com"></textarea>
+        <small>1行につき KEY=value。PORT / HOST などのシステム変数は自動設定されます。</small>
+      </label>
+    </div>
+
+    <div class="deploy-progress-wrap" id="deployProgressWrap" hidden>
+      <div class="deploy-progress-header"><strong id="deployProgressTitle">Deploy準備中</strong><span id="deployProgressPercent">0%</span></div>
+      <div class="deploy-progress"><div class="deploy-progress-bar" id="deployProgressBar" style="width:0%"></div></div>
+      <div class="deploy-steps">
+        <span data-deploy-step="save">設定保存</span>
+        <span data-deploy-step="sync">ファイル同期</span>
+        <span data-deploy-step="build">Build</span>
+        <span data-deploy-step="start">Start</span>
+      </div>
+    </div>
+
+    <pre class="deploy-output" id="deployOutput">Deployログはここに表示されます。</pre>
+  </section>
 
   <section class="project-terminal" aria-label="Project terminal">
     <div class="terminal-head">
@@ -69,4 +124,5 @@
 {% endblock %}
 {% block scripts %}
 <script src="{{ url_for('static', filename='editor.js') }}"></script>
+<script src="{{ url_for('static', filename='runtime.js') }}"></script>
 {% endblock %}
