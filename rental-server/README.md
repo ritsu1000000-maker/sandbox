@@ -1,8 +1,8 @@
 # Hosting Service
 
-Python / Flask を中心にした、アカウント型のアプリケーションホスティングサービスです。
+Python / Node.js / Nginx を対象にした、アカウント型のアプリケーションホスティングサービスです。
 
-利用者はアカウントを作成し、ホスティングプランと実行環境を選んで、自分専用のサービスを発行・管理できます。
+利用者はアカウントを作成し、プランと実行環境を選択して、自分専用のサービスを発行・編集・Deploy・管理できます。
 
 ## 主な機能
 
@@ -13,63 +13,93 @@ Python / Flask を中心にした、アカウント型のアプリケーショ�
 - Render Provider / Docker Runner Provider
 - Start / Stop / Restart
 - 公開URL
+- ブラウザ内コードエディタ
+- ZIPソースコードImport
+- 隔離Project Terminal
+- Build Command
+- Start Command
+- Root Directory
+- Environment Variables
+- Deploy進捗表示
+- Buildログ / アプリ実行ログ
+- 24時間モード（Always On）
+- アプリ異常終了時のSupervisor自動再起動
+- Docker `restart: unless-stopped`
+- サービスごとの永続Docker Volume
 - プラン・月額・更新予定の管理
 - 無料プランの即時発行
 - 有料プランの支払い確認待ち状態
-- Render容量不足時の `capacity_waiting`
-- SQLite / PostgreSQL対応
+- Render容量不足時の共有ホスティングfallback
+- SQLite / PostgreSQL / Redis対応
 - CSRF / Session / Security Headers
 
-## 利用フロー
+## Build / Deploy
+
+Docker Runnerで発行した Python / Node.js サービスでは、コードエディタの **BUILD & DEPLOY** から実際の実行設定を保存できます。
+
+### Python の初期値
 
 ```text
-アカウント作成
-      |
-      v
-ホスティングプランを選択
-      |
-      v
-サービス名・Runtimeを設定
-      |
-      +-- 無料プラン ---> 即時プロビジョニング
-      |
-      +-- 有料プラン ---> pending_payment
-      |
-      v
-Hosting Dashboard
-      |
-      +-- Public URL
-      +-- Start
-      +-- Stop
-      +-- Restart
-      +-- Plan / Billing
-      +-- 利用終了
+Build Command: pip install -r requirements.txt
+Start Command: python -m gunicorn app:app --bind 0.0.0.0:$PORT
+Root Directory: .
+24時間モード: ON
 ```
 
-## アーキテクチャ
+Python依存パッケージはサービス専用Volume内の `.python` に保存されます。
+
+### Node.js の初期値
 
 ```text
-Browser
-  |
-  v
-Flask Web / Session / CSRF
-  |
-  +--> RentalDatabase
-  |      +-- SQLite (local)
-  |      +-- PostgreSQL (production)
-  |
-  v
-RentalService
-  |
-  v
-RentalManager
-  |
-  +-- RenderProvider ----> Render REST API
-  |
-  +-- RunnerProvider ----> Docker Runner ----> isolated containers
+Build Command: npm install
+Start Command: npm start
+Root Directory: .
+24時間モード: ON
 ```
 
-`RentalDatabase` / `RentalService` / `/api/contracts` という内部名は既存データ・API互換性のため残しています。利用者向けUIでは Hosting Service / Service / Plan として表示します。
+`node_modules` もサービス専用Volume内に保持されます。
+
+### Environment Variables
+
+管理画面では以下のように設定します。
+
+```text
+DISCORD_TOKEN=example
+API_URL=https://example.com
+```
+
+`PORT` / `HOST` / `HOME` / `PIP_TARGET` / `PYTHONPATH` / `npm_config_cache` はシステム側で設定するため予約済みです。
+
+Environment Variablesは公開ProjectFileStoreとは別のPrivate Service Config Storeに保存し、公開ファイルURLから参照されない構成です。
+
+## 24時間モード
+
+Runnerサービスでは2段階で復旧します。
+
+1. Docker Container: `restart_policy=unless-stopped`
+2. Application Process: Runtime Supervisor
+
+Start Commandのプロセスが終了すると、24時間モードがONの場合はSupervisorが再起動します。
+
+ユーザーがStopを実行した場合はDocker Container自体が停止します。
+
+## 隔離Runner
+
+利用者の実行コードはcontrolサーバーやホストOSのシェルで直接実行しません。
+
+Runnerが管理するサービスごとのDocker Container内で実行します。
+
+主な制限:
+
+- read-only root filesystem
+- capability drop
+- `no-new-privileges`
+- PID limit
+- RAM / CPU plan limit
+- サービス専用Docker Volume
+- Project Terminal command timeout
+- Project sync size limit
+- per-instance management key
 
 ## Webページ
 
@@ -82,9 +112,24 @@ RentalManager
 | `/dashboard` | ホスティングサービス一覧 |
 | `/create` | 新しいサービスを作成 |
 | `/servers/<service_id>` | サービス管理 |
+| `/servers/<service_id>/editor` | Code Editor / Build & Deploy / Terminal |
 | `/billing` | プラン・請求 |
 | `/health` | 稼働確認 |
 | `/api/system` | システム情報 |
+
+## Runtime API
+
+ログイン中のサービス所有者向けAPIです。
+
+```text
+GET  /api/contracts/<id>/settings
+PUT  /api/contracts/<id>/settings
+POST /api/contracts/<id>/deploy
+GET  /api/contracts/<id>/runtime
+GET  /api/contracts/<id>/runtime-logs
+```
+
+変更系APIにはCSRF Tokenが必要です。
 
 ## プラン
 
@@ -96,7 +141,7 @@ RentalManager
 | 50GB | ¥2,000 | 1GB | 1.0 |
 | 100GB | ¥4,000 | 2GB | 2.0 |
 
-表示している Storage / RAM / CPU はホスティングサービス側のプラン値です。Provider側で実際に適用できる上限とは分けて管理します。
+表示しているStorage / RAM / CPUはホスティングサービス側のプラン値です。Provider側で実際に適用できる上限とは分けて管理します。
 
 ## ローカル起動
 
@@ -137,8 +182,6 @@ http://127.0.0.1:8080
 
 ## server.env
 
-`server.env.example` から生成します。
-
 ```bash
 python server.py init-env
 python server.py check
@@ -154,22 +197,11 @@ DATABASE_URL=sqlite:///data/rental.db
 SESSION_SECRET=<generated>
 INSTANCE_KEY_SECRET=<generated>
 RUNNER_TOKEN=<generated>
+RUNNER_URL=http://127.0.0.1:9000
+RUNNER_PUBLIC_BASE_URL=http://127.0.0.1
 ```
 
-Render Providerを使う場合:
-
-```text
-BACKEND_PROVIDER=render
-RENDER_API_KEY=<secret>
-RENDER_OWNER_ID=<workspace id>
-RENDER_TENANT_REPO=https://github.com/ritsu1000000-maker/sandbox
-RENDER_TENANT_BRANCH=rental-server-mvp
-RENDER_TENANT_REGION=singapore
-RENDER_SERVICE_PREFIX=rental
-ALLOW_PAID_RENDER_PLANS=false
-```
-
-`server.env` / `.env` / SQLite本番データはGit管理しません。
+リモートRunnerの場合、`RUNNER_PUBLIC_BASE_URL` はDockerが公開したポートへブラウザから到達できるホスト名/IPに変更してください。
 
 ## Docker Compose
 
@@ -188,19 +220,11 @@ Branch: rental-server-mvp
 Root Directory: rental-server
 Runtime: Python 3
 Build Command: pip install -r requirements.txt
-Start Command: gunicorn -c gunicorn.conf.py app:app
+Start Command: gunicorn -c gunicorn.conf.py app_ext:app
 Health Check Path: /health
 ```
 
-最低限のEnvironment Variables:
-
-```text
-BACKEND_PROVIDER=render
-RENDER_API_KEY=<Render API Key>
-RENDER_OWNER_ID=<Render Workspace ID>
-INSTANCE_KEY_SECRET=<long random secret>
-DATABASE_URL=<production database URL>
-```
+Render ProviderはRender REST APIによるサービス発行用です。ユーザーがアップロードした任意Python/Node.jsプロジェクトのBuild/Start Command実行は、隔離Docker Runner Providerで行います。
 
 ## セキュリティ
 
@@ -212,19 +236,8 @@ DATABASE_URL=<production database URL>
 - Referrer-Policy
 - Permissions-Policy
 - ユーザー所有権をDBで確認
-- Render API Keyはブラウザへ渡さない
+- Provider API Keyはブラウザへ渡さない
 - Docker socketはcontrolサービスへ渡さない
 - 利用者へホストOSのシェルを直接公開しない
 - 有料Providerリソースは支払い確認前に作成しない
-
-## 本番運用で追加したい機能
-
-- 永続PostgreSQL
-- 実決済連携
-- メール認証 / パスワードリセット
-- Custom Domain / DNS verification
-- CPU / RAM / Request metrics
-- 実ストレージクォータ
-- バックアップ / 復元
-- 管理者向けサービス管理画面
-- Abuse protection / CAPTCHA / shared rate limit
+- Environment Variablesは公開Project Filesと分離して保存
