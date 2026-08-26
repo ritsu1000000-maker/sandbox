@@ -6,13 +6,14 @@
   <meta name="csrf-token" content="{{ csrf_token }}">
   <title>{% block title %}Hosting Service{% endblock %}</title>
   <meta name="description" content="Python・Node.js・Nginxをデプロイできるアカウント型ホスティングサービス。">
-  <meta name="theme-color" content="#1768c4">
+  <meta name="theme-color" content="#2f6fa7">
   <link rel="stylesheet" href="{{ url_for('static', filename='site.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='detail.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='account.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='header.css') }}">
-  <style>.header-admin-badge{display:inline-flex;padding:3px 7px;border-radius:999px;background:#eaf3ff;color:#1768c4;font-size:10px;font-weight:900}</style>
+  <style>.header-admin-badge{display:inline-flex;padding:3px 7px;border-radius:999px;background:#edf5fb;color:#2f6fa7;font-size:10px;font-weight:900}</style>
   {% block head %}{% endblock %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='calm-theme.css') }}">
 </head>
 <body>
 <div class="topline"></div>
