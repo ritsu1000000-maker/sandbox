@@ -1,0 +1,27 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "rental-server",
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-26",
+  "containers": [
+    {
+      "class_name": "HostingContainer",
+      "image": "./Dockerfile",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "HOSTING_CONTAINER",
+        "class_name": "HostingContainer"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["HostingContainer"]
+    }
+  ]
+}

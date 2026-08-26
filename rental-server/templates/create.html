@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}新規サービス｜Hosting Service{% endblock %}
+{% block head %}
+<style>
+.hosting-form-layout{
+  display:grid;
+  grid-template-columns:minmax(0,1.6fr) minmax(320px,1fr) auto;
+  grid-template-areas:
+    "name-label runtime-label action-label"
+    "name-control runtime-control action-control"
+    "name-note . .";
+  column-gap:14px;
+  row-gap:7px;
+  align-items:center;
+}
+.hosting-label{display:block;font-size:12px;font-weight:800;color:#4d596a;line-height:20px;height:20px;margin:0}
+.hosting-name-label{grid-area:name-label}
+.hosting-runtime-label{grid-area:runtime-label}
+.hosting-action-label{grid-area:action-label;visibility:hidden}
+.hosting-name-input{grid-area:name-control;width:100%;height:50px;border:1px solid #ccd5df;border-radius:10px;background:#fff;color:#202b3c;padding:0 14px;outline:none;transition:.15s ease}
+.hosting-name-input:focus{border-color:#72a4d7;box-shadow:0 0 0 3px rgba(23,104,196,.08)}
+.hosting-runtime-control{grid-area:runtime-control;min-width:0;width:100%}
+.hosting-runtime-control .select-trigger{height:50px}
+.hosting-create-button{grid-area:action-control;height:50px;min-width:174px;margin:0!important;align-self:center;white-space:nowrap}
+.hosting-name-note{grid-area:name-note;font-size:12px;color:#7b8797;margin:4px 0 0}
+@media(max-width:1000px){
+  .hosting-form-layout{
+    grid-template-columns:1fr 1fr;
+    grid-template-areas:
+      "name-label runtime-label"
+      "name-control runtime-control"
+      "name-note ."
+      "action-control action-control";
+  }
+  .hosting-action-label{display:none}
+  .hosting-create-button{width:100%;margin-top:8px!important}
+}
+@media(max-width:640px){
+  .hosting-form-layout{
+    grid-template-columns:1fr;
+    grid-template-areas:
+      "name-label"
+      "name-control"
+      "name-note"
+      "runtime-label"
+      "runtime-control"
+      "action-control";
+    row-gap:8px;
+  }
+  .hosting-runtime-label{margin-top:10px}
+}
+</style>
+{% endblock %}
+{% block content %}
+<section class="page-hero"><div class="container"><span class="page-label">NEW HOSTING SERVICE</span><h1>新しいサービスを作成</h1><p>プラン、サービス名、実行環境を選んでホスティングを開始します。無料プランは作成後すぐ発行されます。</p></div></section>
+<section class="section">
+  <div class="container">
+    <header class="section-heading"><span class="label">STEP 01</span><h2>ホスティングプランを選択</h2><p>容量と性能、月額を確認して選択してください。</p></header>
+    <div class="plan-chooser">
+      <button type="button" class="plan-choice" data-plan-choice="free"><strong>500MB</strong><span>無料 · RAM 128MB · CPU 0.1 · 即時発行</span></button>
+      <button type="button" class="plan-choice" data-plan-choice="small"><strong>1GB</strong><span>¥500/月 · RAM 256MB · 支払い確認後</span></button>
+      <button type="button" class="plan-choice" data-plan-choice="medium"><strong>10GB</strong><span>¥1,500/月 · RAM 512MB · 支払い確認後</span></button>
+      <button type="button" class="plan-choice" data-plan-choice="large"><strong>50GB</strong><span>¥2,000/月 · RAM 1GB · 支払い確認後</span></button>
+      <button type="button" class="plan-choice" data-plan-choice="xlarge"><strong>100GB</strong><span>¥4,000/月 · RAM 2GB · 支払い確認後</span></button>
+    </div>
+    <header class="section-heading"><span class="label">STEP 02</span><h2>サービス設定</h2><p>ダッシュボードに表示するサービス名と実行環境を指定します。</p></header>
+    <div class="application-box">
+      <form id="createForm">
+        <input type="hidden" id="plan" value="free">
+        <div class="hosting-form-layout">
+          <label class="hosting-label hosting-name-label" for="name">サービス名</label>
+          <label class="hosting-label hosting-runtime-label">実行環境</label>
+          <span class="hosting-label hosting-action-label" aria-hidden="true">作成</span>
+
+          <input class="hosting-name-input" id="name" placeholder="my-app" autocomplete="off" maxlength="32" pattern="[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?" title="1〜32文字の英小文字・数字・ハイフンを使用できます。" required>
+
+          <div class="custom-select hosting-runtime-control" data-custom-select>
+            <input type="hidden" id="template" value="python-web">
+            <button class="select-trigger" type="button" aria-expanded="false"><span class="select-icon" data-select-icon>PY</span><span class="select-copy"><strong data-select-label>Python Web</strong><span data-select-desc>Flask / Python向け</span></span><svg class="select-chevron" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M5 7.5l5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <div class="select-menu">
+              <button type="button" class="select-option" data-value="python-web"><span class="select-icon">PY</span><span class="select-copy"><strong>Python Web</strong><span>Flask / Python向け</span></span><span class="checkmark">✓</span></button>
+              <button type="button" class="select-option" data-value="node-web"><span class="select-icon">JS</span><span class="select-copy"><strong>Node.js Web</strong><span>Node.jsアプリ向け</span></span><span class="checkmark">✓</span></button>
+              <button type="button" class="select-option" data-value="nginx"><span class="select-icon">NX</span><span class="select-copy"><strong>Nginx</strong><span>静的サイト・配信向け</span></span><span class="checkmark">✓</span></button>
+            </div>
+          </div>
+
+          <button class="button button-primary create-btn hosting-create-button" type="submit">この内容で作成</button>
+          <p class="hosting-name-note">1〜32文字。大文字は小文字、空白はハイフンに自動変換します。</p>
+        </div>
+        <p class="small-note" id="selectedPlanText"></p>
+        <p class="small-note">有料プランは決済確認が完了するまでホスティング環境を発行しません。</p>
+        <div id="message" class="msg"></div>
+      </form>
+    </div>
+  </div>
+</section>
+{% endblock %}

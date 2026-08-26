@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}マイサーバー｜Rental Server{% endblock %}
+{% block content %}
+<section class="page-hero"><div class="container"><span class="page-label">MY SERVERS</span><h1>マイサーバー</h1><p>このブラウザに保存された管理キーを使って、作成済みサーバーだけを表示します。</p></div></section>
+<section class="section"><div class="container"><div id="instances" class="server-grid"></div></div></section>
+<section class="section section-alt"><div class="container"><div class="info-strip"><article class="content-card"><span class="route-chip">/create</span><h3>新しいサーバー</h3><p>追加でサーバーを作成する場合はこちら。</p><p style="margin-top:14px"><a class="button button-outline" href="/create">作成ページへ</a></p></article><article class="content-card"><span class="route-chip">/import</span><h3>別端末のサーバー</h3><p>管理キーを持っている既存サーバーを追加できます。</p><p style="margin-top:14px"><a class="button button-outline" href="/import">追加ページへ</a></p></article><article class="content-card"><span class="route-chip">/plans</span><h3>プランを確認</h3><p>容量・料金・性能をもう一度比較できます。</p><p style="margin-top:14px"><a class="button button-outline" href="/plans">料金を見る</a></p></article></div></div></section>
+{% endblock %}

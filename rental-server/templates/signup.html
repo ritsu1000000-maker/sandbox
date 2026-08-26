@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}新規登録｜Hosting Service{% endblock %}
+{% block content %}
+<section class="auth-section">
+  <div class="auth-card">
+    <span class="page-label">CREATE HOSTING ACCOUNT</span>
+    <h1>新規登録</h1>
+    <p>作成したホスティングサービスをあなたのアカウントに紐づけます。</p>
+    {% if error %}<div class="form-alert">{{ error }}</div>{% endif %}
+    <form method="post" class="auth-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>メールアドレス<input type="email" name="email" value="{{ email }}" autocomplete="email" required></label>
+      <label>パスワード<input type="password" name="password" autocomplete="new-password" minlength="8" required><small>8文字以上</small></label>
+      <label>パスワード確認<input type="password" name="confirm_password" autocomplete="new-password" minlength="8" required></label>
+      <button class="button button-primary auth-submit" type="submit">アカウントを作成</button>
+    </form>
+    <p class="auth-switch">登録済みですか？ <a href="/login">ログイン</a></p>
+  </div>
+</section>
+{% endblock %}

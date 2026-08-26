@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}プラン・請求｜Hosting Service{% endblock %}
+{% block content %}
+<section class="page-hero"><div class="container"><span class="page-label">PLANS & BILLING</span><h1>プラン・請求</h1><p>利用中のホスティングプラン、月額、更新予定を確認します。</p></div></section>
+<section class="section">
+  <div class="container">
+    <div class="billing-note"><strong>無料プランはすぐ利用開始できます。</strong><span>有料プランは決済確認が完了するまでホスティング環境を発行しません。</span></div>
+    {% if contracts %}
+      <div class="billing-list">
+      {% for c in contracts %}
+        <article class="billing-row">
+          <div><span class="contract-id">SERVICE #{{ c.id }}</span><h3>{{ c.name }}</h3><p>{{ c.plan_name }} / {{ c.memory }} RAM / CPU {{ c.cpu }}</p></div>
+          <div class="billing-price"><span>月額</span><strong>¥{{ '{:,}'.format(c.price_yen) }}</strong></div>
+          <div class="billing-state"><span>状態</span><strong>{{ c.status }}</strong><small>更新: {{ c.renews_at[:10] if c.renews_at else '-' }}</small></div>
+          <div>
+            {% if c.status == 'pending_payment' %}<span class="payment-pending">支払い確認待ち</span>
+            {% elif c.status == 'active' %}<a class="button button-outline" href="/servers/{{ c.id }}">サービス管理</a>
+            {% else %}<span class="disabled-action">{{ c.status }}</span>{% endif %}
+          </div>
+        </article>
+      {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty"><p>まだホスティングサービスがありません。</p><a class="button button-primary" href="/create">サービスを作成</a></div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Admin｜Hosting Service{% endblock %}
+{% block head %}
+<style>
+.admin-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:26px}.admin-stat{background:#fff;border:1px solid #dfe5ec;border-radius:14px;padding:20px}.admin-stat span{display:block;color:#7b8797;font-size:12px;font-weight:700}.admin-stat strong{display:block;margin-top:3px;font-size:28px;color:#22364e}.admin-section{margin-top:34px}.admin-section h2{margin:0 0 16px;font-size:24px}.admin-table-wrap{overflow:auto;border:1px solid #dfe5ec;border-radius:14px;background:#fff}.admin-table{width:100%;border-collapse:collapse;min-width:900px}.admin-table th,.admin-table td{text-align:left;padding:14px 16px;border-bottom:1px solid #edf1f5;font-size:13px;vertical-align:middle}.admin-table th{background:#f8fafc;color:#637083;font-size:11px;letter-spacing:.04em}.admin-table tr:last-child td{border-bottom:0}.admin-email{font-weight:800;color:#273a51}.admin-status{display:inline-flex;border-radius:999px;padding:4px 8px;background:#f1f4f7;font-size:11px;font-weight:900}.admin-status.active{background:#eaf8ef;color:#217a42}.admin-status.stopped{background:#fff5df;color:#936400}.admin-status.canceled{background:#f0f2f4;color:#6f7781}.admin-actions{display:flex;gap:6px;flex-wrap:wrap}.admin-actions button{border:1px solid #cfd8e2;background:#fff;border-radius:7px;padding:6px 9px;font-weight:800;font-size:11px}.admin-actions button:hover{border-color:#1768c4;color:#1768c4}.admin-actions .danger{color:#b42318;border-color:#efc7c2}.admin-note{margin:0 0 20px;color:#6f7b8b}.admin-badge{display:inline-flex;margin-left:8px;padding:3px 7px;border-radius:999px;background:#eaf3ff;color:#1768c4;font-size:10px;font-weight:900}@media(max-width:800px){.admin-stats{grid-template-columns:repeat(2,1fr)}}
+</style>
+{% endblock %}
+{% block content %}
+<section class="page-hero"><div class="container"><span class="page-label">ADMIN CONTROL</span><h1>Admin Dashboard</h1><p>ユーザー、ホスティングサービス、稼働状態を管理します。</p></div></section>
+<section class="section"><div class="container">
+  <div class="admin-stats">
+    <article class="admin-stat"><span>USERS</span><strong>{{ stats.users }}</strong></article>
+    <article class="admin-stat"><span>SERVICES</span><strong>{{ stats.services }}</strong></article>
+    <article class="admin-stat"><span>ACTIVE</span><strong>{{ stats.active }}</strong></article>
+    <article class="admin-stat"><span>SHARED</span><strong>{{ stats.shared }}</strong></article>
+  </div>
+
+  <section class="admin-section">
+    <h2>サービス管理</h2>
+    <p class="admin-note">Admin操作はログイン済みAdminアカウントとCSRFで保護されています。</p>
+    <div class="admin-table-wrap"><table class="admin-table">
+      <thead><tr><th>ID</th><th>サービス</th><th>所有者</th><th>プラン</th><th>Provider</th><th>状態</th><th>操作</th></tr></thead>
+      <tbody>
+      {% for s in services %}
+        <tr>
+          <td>#{{ s.id }}</td>
+          <td><strong>{{ s.name }}</strong>{% if s.public_url %}<br><small>{{ s.public_url }}</small>{% endif %}</td>
+          <td class="admin-email">{{ s.owner_email }}</td>
+          <td>{{ s.plan_name }}<br><small>¥{{ '{:,}'.format(s.price_yen) }}/月</small></td>
+          <td>{{ s.provider }}</td>
+          <td><span class="admin-status {{ s.status }}">{{ s.status }}</span></td>
+          <td>
+            <div class="admin-actions">
+              {% if s.status in ['active','stopped'] %}
+                <button type="button" data-admin-action="start" data-service-id="{{ s.id }}">Start</button>
+                <button type="button" data-admin-action="stop" data-service-id="{{ s.id }}">Stop</button>
+                <button type="button" data-admin-action="restart" data-service-id="{{ s.id }}">Restart</button>
+              {% endif %}
+              {% if s.status in ['capacity_waiting','provision_failed'] %}<button type="button" data-admin-action="retry" data-service-id="{{ s.id }}">Retry</button>{% endif %}
+              {% if s.status != 'canceled' %}<button class="danger" type="button" data-admin-action="cancel" data-service-id="{{ s.id }}" data-danger="true">終了</button>{% endif %}
+            </div>
+          </td>
+        </tr>
+      {% else %}
+        <tr><td colspan="7">サービスはまだありません。</td></tr>
+      {% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="admin-section">
+    <h2>ユーザー</h2>
+    <div class="admin-table-wrap"><table class="admin-table">
+      <thead><tr><th>User ID</th><th>メールアドレス</th><th>サービス数</th><th>登録日時</th></tr></thead>
+      <tbody>
+      {% for u in users %}
+        <tr><td>#{{ u.id }}</td><td class="admin-email">{{ u.email }}{% if u.email == current_user.email %}<span class="admin-badge">YOU</span>{% endif %}</td><td>{{ u.service_count }}</td><td>{{ u.created_at }}</td></tr>
+      {% else %}<tr><td colspan="4">ユーザーはいません。</td></tr>{% endfor %}
+      </tbody>
+    </table></div>
+  </section>
+</div></section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='admin.js') }}"></script>{% endblock %}
