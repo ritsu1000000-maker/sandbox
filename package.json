@@ -1,0 +1,10 @@
+{
+  "name": "sandbox-cloudflare-root",
+  "private": true,
+  "workspaces": [
+    "rental-server"
+  ],
+  "scripts": {
+    "deploy": "npm --prefix rental-server run deploy"
+  }
+}
