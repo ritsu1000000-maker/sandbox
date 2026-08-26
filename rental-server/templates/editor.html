@@ -2,6 +2,7 @@
 {% block title %}{{ contract.name }}｜コードエディタ｜Hosting Service{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="{{ url_for('static', filename='editor.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='runtime.css') }}">
 {% endblock %}
 {% block content %}
 <section class="editor-page" id="codeEditor" data-contract-id="{{ contract.id }}" data-provider="{{ contract.provider }}">
